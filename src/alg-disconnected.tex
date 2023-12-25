@@ -1,0 +1,37 @@
+\begin{algorithm}[hbtp]
+\caption{Finding disconnected communities in parallel.}
+\label{alg:disconnected}
+\begin{algorithmic}[1]
+\Require{$G$: Input graph}
+\Require{$C$: Community membership of each vertex}
+\Ensure{$D$: Disconnected flag for each community}
+\Ensure{$S$: Size of each community}
+\Ensure{$f_{if}$: Perform BFS to vertex $j$ if condition satisfied}
+\Ensure{$f_{do}$: Perform operation after each vertex is visited}
+\Ensure{$reached$: Number of vertices reachable from $i$ to $i$'s community}
+\Ensure{$work_t$: Work-list of current thread}
+
+\Statex
+
+\Function{disconnectedCommunities}{$G, C$} \label{alg:disconnected--begin}
+  \State $D \gets \{\}$ \textbf{;} $vis \gets \{\}$ \label{alg:disconnected--init}
+  \State $S \gets communitySizes(G, C)$ \label{alg:disconnected--sizes}
+  \ForAll{\textbf{threads in parallel}} \label{alg:disconnected--threads-begin}
+    \ForAll{$i \in V$} \label{alg:disconnected--loop-begin}
+      \State $c \gets C[i]$ \textbf{;} $reached \gets 0$ \label{alg:disconnected--unreached}
+      \State $\rhd$ Skip if community $c$ is empty, or
+      \State $\rhd$ does not belong to work-list of current thread.
+      \If{$S[c] = 0$ \textbf{or} $c \notin work_t$} \textbf{continue} \label{alg:disconnected--work}
+      \EndIf
+      \State $f_{if} \gets (j) \implies C[j] = c$
+      \State $f_{do} \gets (j) \implies reached \gets reached + 1$
+      \State $bfsVisitForEach(vis, G, i, f_{if}, f_{do})$ \label{alg:disconnected--bfs}
+      \If{$reached < S[c]$} $D[c] \gets 1$ \label{alg:disconnected--mark}
+      \EndIf
+      \State $S[c] \gets 0$ \label{alg:disconnected--processed}
+    \EndFor \label{alg:disconnected--loop-end}
+  \EndFor \label{alg:disconnected--threads-end}
+  \Return{$D$}
+\EndFunction \label{alg:disconnected--end}
+\end{algorithmic}
+\end{algorithm}

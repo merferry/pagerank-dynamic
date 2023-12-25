@@ -1,0 +1,44 @@
+Consider an undirected graph $G(V, E, w)$, where $V$ represents the set of vertices, $E$ the set of edges, and $w_{ij} = w_{ji}$ denotes the weight associated with each edge. In the case of an unweighted graph, we assume unit weight for each edge ($w_{ij} = 1$). Additionally, the neighbors of a vertex $i$ are denoted as $J_i = \{j\ |\ (i, j) \in E\}$, the weighted degree of each vertex as $K_i = \sum_{j \in J_i} w_{ij}$, the total number of vertices as $N = |V|$, the total number of edges as $M = |E|$, and the sum of edge weights in the undirected graph as $m = \sum_{i, j \in V} w_{ij}/2$.
+
+
+
+
+\subsection{Community detection}
+
+Disjoint community detection involves identifying a community membership mapping, $C: V \rightarrow \Gamma$, where each vertex $i \in V$ is assigned a community-id $c$ from the set of community-ids $\Gamma$. We denote the vertices of a community $c \in \Gamma$ as $V_c$, and the community that a vertex $i$ belongs to as $C_i$. Further, we denote the neighbors of vertex $i$ belonging to a community $c$ as $J_{i \rightarrow c} = \{j\ |\ j \in J_i\ and\ C_j = c\}$, the sum of those edge weights as $K_{i \rightarrow c} = \sum_{j \in J_{i \rightarrow c}} w_{ij}$, the sum of weights of edges within a community $c$ as $\sigma_c = \sum_{(i, j) \in E\ and\ C_i = C_j = c} w_{ij}$, and the total edge weight of a community $c$ as $\Sigma_c = \sum_{(i, j) \in E\ and\ C_i = c} w_{ij}$ \cite{com-leskovec21}.
+
+
+
+
+\subsection{Modularity}
+
+Modularity serves as a\ignore{fitness} metric for evaluating the quality of communities identified by heuristic-based community detection algorithms. It is calculated as the difference between the fraction of edges within communities and the expected fraction if edges were randomly distributed, yielding a range of $[-0.5, 1]$, where higher values signify superior results \cite{com-brandes07}.\ignore{The optimization of this metric theoretically leads to the optimal grouping \cite{com-newman04, com-traag11}.} The modularity $Q$ of identified communities is determined using Equation \ref{eq:modularity}, where $\delta$ represents the Kronecker delta function ($\delta (x,y)=1$ if $x=y$, $0$ otherwise). The \textit{delta modularity} of moving a vertex $i$ from community $d$ to community $c$, denoted as $\Delta Q_{i: d \rightarrow c}$, can be calculated using Equation \ref{eq:delta-modularity}.
+
+\begin{equation}
+\label{eq:modularity}
+  Q
+  = \frac{1}{2m} \sum_{(i, j) \in E} \left[w_{ij} - \frac{K_i K_j}{2m}\right] \delta(C_i, C_j)
+  = \sum_{c \in \Gamma} \left[\frac{\sigma_c}{2m} - \left(\frac{\Sigma_c}{2m}\right)^2\right]
+\end{equation}
+
+\begin{equation}
+\label{eq:delta-modularity}
+  \Delta Q_{i: d \rightarrow c}
+  = \frac{1}{m} (K_{i \rightarrow c} - K_{i \rightarrow d}) - \frac{K_i}{2m^2} (K_i + \Sigma_c - \Sigma_d)
+\end{equation}
+
+
+
+
+\subsection{Louvain algorithm}
+\label{sec:about-louvain}
+
+The Louvain method \cite{com-blondel08} is an agglomerative algorithm that optimizes modularity to identify high quality disjoint communities in large networks. It has a time complexity of $O (L |E|)$, where $L$ is the total number of iterations performed, and a space complexity of $O(|V| + |E|)$ \cite{com-lancichinetti09}. This algorithm comprises two phases: the \textit{local-moving phase}, in which each vertex $i$ greedily decides to join the community of one of its neighbors $j \in J_i$ to maximize the increase in modularity $\Delta Q_{i:C_i \rightarrow C_j}$ (using Equation \ref{eq:delta-modularity}), and the \textit{aggregation phase}, where all vertices in a community are merged into a single super-vertex. These phases constitute one pass, which is repeated until there is no further increase in modularity is observed \cite{com-blondel08, com-leskovec21}.\ignore{We observe that Louvain obtains high-quality communities, with $3.0 - 30\%$ higher modularity than that obtained by LPA, but requires $2.3 - 14\times$ longer to converge.}
+
+
+
+
+\subsection{Leiden algorithm}
+\label{sec:about-leiden}
+
+As mentioned earlier, the Louvain method, while effective, may identify internally disconnected communities and arbitrarily badly connected ones. Traag et al. \cite{com-traag19} proposed the Leiden algorithm to address these issues. The algorithm introduces a \textit{refinement phase} subsequent to the local-moving phase, wherein vertices within each community undergo additional updates to their community membership within their community bounds (obtained from the local-moving phase), starting from a singleton community. This is performed in a randomized manner, with the probability of joining a neighboring community within its community bound being proportional to the delta-modularity of the move. This facilitates the identification of sub-communities within those obtained from the local-moving phase. The Leiden algorithm not only guarantees that all communities are well separated (akin to the Louvain method), but also are well connected. Once communities have converged, it is guaranteed that all vertices are optimally assigned, and all communities are subset optimal \cite{com-traag19}. It has a time complexity of $O (L |E|)$, where $L$ is the total number of iterations performed, and a space complexity of $O(|V| + |E|)$, similar to the Louvain method.

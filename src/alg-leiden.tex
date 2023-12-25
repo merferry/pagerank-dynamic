@@ -1,0 +1,41 @@
+\begin{algorithm}[hbtp]
+\caption{GVE-Leiden: Our parallel Leiden algorithm.}
+\label{alg:leiden}
+\begin{algorithmic}[1]
+\Require{$G$: Input graph}
+\Require{$C$: Community membership of each vertex}
+\Require{$G'$: Input/super-vertex graph}
+\Require{$C'$: Community membership of each vertex in $G'$}
+\Require{$K'$: Total edge weight of each vertex}
+\Require{$\Sigma'$: Total edge weight of each community}
+\Ensure{$G'_{C'}$: Community vertices (CSR)}
+\Ensure{$H_t$: Collision-free per-thread hashtable}
+\Ensure{$l_i$, $l_j$: Number of iterations performed (per pass)}
+\Ensure{$l_p$: Number of passes performed}
+\Ensure{$\tau$: Per iteration tolerance}
+\Ensure{$\tau_{agg}$: Aggregation tolerance}
+
+\Statex
+
+\Function{leiden}{$G$} \label{alg:leiden--begin}
+  \State Vertex membership: $C \gets [0 .. |V|)$ \textbf{;} $G' \gets G$ \label{alg:leiden--initialization}
+  \ForAll{$l_p \in [0 .. \text{\small{MAX\_PASSES}})$} \label{alg:leiden--passes-begin}
+    \State $\Sigma' \gets K' \gets vertexWeights(G')$ \textbf{;} $C' \gets [0 .. |V'|)$ \label{alg:leiden--reset-weights}
+    \State $l_i \gets leidenMove(G', C', K', \Sigma', \tau)$ \label{alg:leiden--local-move}
+    \State $C'_B \gets C'$ \textbf{;} $C' \gets [0 .. |V'|)$ \textbf{;} $\Sigma' \gets K'$ \label{alg:leiden--reset-again}
+    \State $l_j \gets leidenRefine(G', C'_B, C', K', \Sigma', \tau)$ \label{alg:leiden--refine}
+    \If{$l_i + l_j \le 1$} \textbf{break} \Comment{Globally converged?} \label{alg:leiden--globally-converged}
+    \EndIf
+    \State $|\Gamma|, |\Gamma_{old}| \gets$ Number of communities in $C$, $C'$
+    \If{$|\Gamma|/|\Gamma_{old}| > \tau_{agg}$} \textbf{break} \Comment{Low shrink?} \label{alg:leiden--aggregation-tolerance}
+    \EndIf
+    \State $C' \gets$ Renumber communities in $C'$ \label{alg:leiden--renumber}
+    \State $C \gets$ Lookup dendrogram using $C$ to $C'$ \label{alg:leiden--lookup}
+    \State $G' \gets leidenAggregate(G', C')$ \label{alg:leiden--aggregate}
+    \State $\tau \gets \tau / \text{\small{TOLERANCE\_DROP}}$ \Comment{Threshold scaling} \label{alg:leiden--threshold-scaling}
+  \EndFor \label{alg:leiden--passes-end}
+  \State $C \gets$ Lookup dendrogram using $C$ to $C'$ \label{alg:leiden--lookup-last}
+  \Return{$C$} \label{alg:leiden--return}
+\EndFunction \label{alg:leiden--end}
+\end{algorithmic}
+\end{algorithm}

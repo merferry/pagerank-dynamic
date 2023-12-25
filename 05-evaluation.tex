@@ -1,0 +1,57 @@
+\subsection{Experimental Setup}
+\label{sec:setup}
+
+\subsubsection{System used}
+
+We employ a server equipped with two Intel Xeon Gold 6226R processors, each featuring $16$ cores running at a clock speed of $2.90$ GHz. Each core is equipped with a $1$ MB L1 cache, a $16$ MB L2 cache, and a $22$ MB shared L3 cache. The system is configured with $376$ GB RAM and set up with CentOS Stream 8.
+
+
+\subsubsection{Configuration}
+
+We use 32-bit integers for vertex ids and 32-bit float for edge weights but use 64-bit floats for computations and hashtable values. We utilize $64$ threads to match the number of cores available on the system (unless specified otherwise). For compilation, we use GCC 8.5 and OpenMP 4.5.
+
+
+\subsubsection{Dataset}
+
+The graphs used in our experiments are given in Table \ref{tab:dataset}. These are sourced from the SuiteSparse Matrix Collection \cite{suite19}. In the graphs, number of vertices vary from $3.07$ to $214$ million, and number of edges vary from $25.4$ million to $3.80$ billion. We ensure edges to be undirected and weighted with a default of $1$.
+
+\input{src/tab-dataset}
+\input{src/fig-leiden-compare}
+\input{src/fig-gve-compare}
+
+
+
+
+\subsection{Comparing Performance of GVE-Leiden}
+
+We now compare the performance of GVE-Leiden with the original Leiden \cite{com-traag19}, igraph Leiden \cite{csardi2006igraph}, and NetworKit Leiden \cite{staudt2016networkit}. For the original Leiden, we use a C++ program to initialize a \texttt{ModularityVertexPartition} upon the loaded graph, and invoke \texttt{optimise\_partition()} to obtain the community membership of each vertex in the graph. For igraph Leiden, we use \texttt{igraph\_commun} \texttt{ity\_leiden()} with a resolution of $1/2|E|$, a beta of $0.01$, and request the algorithm to run until convergence. For NetworKit Leiden, we write a Python script to call \texttt{ParallelLeiden()}, while limiting the number of passes to $10$. For each graph, we measure the runtime of each implementation and the modularity of the communities obtained, five times, for averaging. We also save the community membership vector to a file and later count the number of disconnected components using Algorithm \ref{alg:disconnected}. In all instances, we use modularity as the quality function to optimize for.
+
+Figure \ref{fig:leiden-compare--runtime} shows the runtimes of the original Leiden, igraph Leiden, NetworKit Leiden, and GVE-Leiden on each graph in the dataset. On the \textit{sk-2005} graph, GVE-Leiden finds communities in $10.8$ seconds, and thus achieve a processing rate of $352$ million edges/s. Figure \ref{fig:leiden-compare--speedup} shows the speedup of GVE-Leiden with respect to each implementation mentioned above. GVE-Leiden is on average $373\times$, $86\times$, and $7.2\times$ faster than the original Leiden, igraph Leiden, and NetworKit Leiden respectively. Figure \ref{fig:leiden-compare--modularity} shows the modularity of communities obtained with each implementation. GVE-Leiden on average obtains $0.1\%$ lower modularity than the original Leiden and igraph Leiden, and $26\%$ higher modularity than NetworKit Leiden (especially on road networks and protein k-mer graphs). Finally, Figure \ref{fig:leiden-compare--disconnected} shows the fraction of disconnected communities obtained with each implementation. Here, the absence of bars indicates the absence of disconnected communities. Communities identified by GVE-Leiden on average have $88\times$, $145\times$, and $0.76\times$ disconnected communities than the original Leiden, igraph Leiden, and NetworKit Leiden respectively. While this compares unfavorably with the original Leiden and igraph Leiden (especially on \textit{social networks}, \textit{road networks}, and \textit{protein k-mer graphs}), it may be simpler to split the disconnected communities obtained from GVE-Leiden as a post-processing step. We would like to address this issue some time in the future.
+
+\ignore{
+Q> Why does Leiden have some disconnected communities still?
+Q> Why does Leiden not work with road networks?
+I think the answer for both questions has to do with parallelism. There is a race between threads to pick a suitable community. If the size of each community is large, this generally does not badly affect modularity. But with small community bounds (in refinement phase of Leiden) the race can lead to bad community memberships. I will try to come up a few solutions to this. This is not an issue with sequential, so Traag et al. dont observe this issue in their original paper.
+}
+
+Next, we compare the performance of GVE-Leiden with GVE-Louvain \cite{sahu2023gvelouvain}, our parallel implementation of the Louvain method. As above, for each graph in the dataset, we run both algorithms 5 times to minimize measurement noise\ignore{, and report the averages in Figures \ref{fig:gve-compare--runtime}, \ref{fig:gve-compare--speedup}, \ref{fig:gve-compare--modularity}, and \ref{fig:gve-compare--disconnected}}. Figure \ref{fig:gve-compare--runtime} shows the runtimes of GVE-Louvain and GVE-Leiden on each graph in the dataset. Figure \ref{fig:gve-compare--speedup} shows the speedup of GVE-Leiden with respect to GVE-Louvain. GVE-Leiden is on average $36\%$ slower than GVE-Louvain. This increase in computation time is a trade-off for obtaining significantly fewer disconnected communities, as given below. Figure \ref{fig:gve-compare--modularity} shows the modularity of communities obtained with GVE-Louvain and GVE-Leiden. GVE-Leiden on average obtains $0.3\%$ higher modularity than GVE-Louvain. Finally, Figure \ref{fig:gve-compare--disconnected} shows the fraction of internally-disconnected communities obtained with GVE-Louvain and GVE-Leiden. Communities identified by GVE-Leiden on average have an $11$-fold decrease in the number of disconnected communities than GVE-Louvain.
+
+\input{src/fig-leiden-splits}
+\input{src/fig-leiden-hardness}
+\input{src/fig-leiden-ss}
+
+
+
+
+\subsection{Analyzing Performance of GVE-Leiden}
+
+We now analyze the performance of GVE-Leiden. The phase-wise and pass-wise split of GVE-Leiden is shown in Figures \ref{fig:leiden-splits--phase} and \ref{fig:leiden-splits--pass} respectively. Figure \ref{fig:leiden-splits--phase} reveals that GVE-Leiden devotes a significant portion of its runtime to the local-moving and refinement phases on \textit{web graphs}, \textit{road networks}, and \textit{protein k-mer graphs}, while it dedicates majority of its runtime in the aggregation phase on \textit{social networks}. The pass-wise split, shown in Figure \ref{fig:leiden-splits--pass}, indicates that the first pass is time-intensive for high-degree graphs (\textit{web graphs} and \textit{social networks}), while subsequent passes take precedence in execution time on low-degree graphs (\textit{road networks} and \textit{protein k-mer graphs}).
+
+On average, GVE-Leiden spends $37\%$ of its runtime in the local-moving phase, $27\%$ in the refinement phase, $24\%$ in the aggregation phase, and $12\%$ in other steps (initialization, renumbering communities, dendrogram lookup, and resetting communities). Further, $73\%$ of the runtime is consumed by the first pass of the algorithm, which is computationally demanding due to the size of the original graph (subsequent passes operate on super-vertex graphs). We also observe that graphs with lower average degree (\textit{road networks} and \textit{protein k-mer graphs}) and those with poor community structure (e.g., \verb|com-LiveJournal| and \verb|com-Orkut|) exhibit a higher $\text{runtime}/|E|$ factor, as shown in Figure \ref{fig:leiden-hardness}.
+
+
+
+
+\subsection{Strong Scaling of GVE-Leiden}
+
+Finally, we assess the strong scaling performance of GVE-Leiden. In this analysis, we vary the number of threads from $1$ to $64$ in multiples of $2$ for each input graph, and measure the total time taken for GVE-Leiden to identify communities, encompassing its phase splits (local-moving, refinement, aggregation, and others), repeated five times for averaging. The results are shown in Figure \ref{fig:leiden-ss}. With 32 threads, GVE-Leiden achieves an average speedup of $10.9\times$ compared to a single-threaded execution, indicating a performance increase of $1.6\times$ for every doubling of threads. Nevertheless, scalability is restricted due to the sequential nature of steps/phases in the algorithm. At 64 threads, GVE-Leiden is affected by NUMA effects, resulting in a speedup of only $12.9\times$.

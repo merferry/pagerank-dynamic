@@ -1,0 +1,14 @@
+\begin{figure*}[hbtp]
+  \centering
+  % \includegraphics[width=0.44\linewidth]{out/deletions-speedup-key.pdf}
+  \subfigure[Overall result]{
+    \label{fig:deletions-speedup--mean}
+    \includegraphics[width=0.38\linewidth]{out/deletions-speedup-mean.pdf}
+  }
+  \subfigure[Results on each graph]{
+    \label{fig:deletions-speedup--all}
+    \includegraphics[width=0.58\linewidth]{out/deletions-speedup-all.pdf}
+  } \\[-1ex]
+  \caption{Deletions Time taken (solid lines), and modularity of communities obtained (dashed lines) along the Y2 axis, with X, X, and X (Algorithm X) on batch updates of increasing size from $10^{-7} |E|$ to $0.1 |E|$. Note that both axes are logarithmic. The numbers on the lines corresponding to X and X indicate the speedup of X over  the two algorithms, respectively.}
+  \label{fig:deletions-speedup}
+\end{figure*}

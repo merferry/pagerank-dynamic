@@ -1,0 +1,14 @@
+\begin{figure}[!hbt]
+  \centering
+  \subfigure{
+    \label{fig:strong-scaling-am-key}
+    \includegraphics[width=0.75\linewidth]{out/strong-scaling-am-key.pdf}
+  } \\[-1ex]
+  \subfigure{
+    \label{fig:strong-scaling-am}
+    \includegraphics[width=0.65\linewidth]{out/strong-scaling-am.pdf}
+  } \\[-2ex]
+  %\caption{Speedup (Y-axis) with \StaWbar{}, \NaiWbar{}, and \FroWbar{} (dashed lines) along with \StaBarf{}, \NaiBarf{}, and \FroBarf{} (solid lines) with respect to sequential version of the same approach, when performed with increasing number of threads from $1$ to $64$ in multiples of $2$ (X-axis), on a fixed batch size of $10^{-4}|E|$ and in the absence of faults.}
+\caption{Time taken by \StaWbar{}, \NaiWbar{}, and \FroWbar{} (dashed lines) along with \StaBarf{}, \NaiBarf{}, and \FroBarf{} (solid lines) over increasing thread count from 1 to 128. The time is averaged over the graphs in Table \ref{tab:dataset}.}
+  \label{fig:strong-scaling}
+\end{figure}

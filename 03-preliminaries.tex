@@ -1,44 +1,63 @@
-Consider an undirected graph $G(V, E, w)$, where $V$ represents the set of vertices, $E$ the set of edges, and $w_{ij} = w_{ji}$ denotes the weight associated with each edge. In the case of an unweighted graph, we assume unit weight for each edge ($w_{ij} = 1$). Additionally, the neighbors of a vertex $i$ are denoted as $J_i = \{j\ |\ (i, j) \in E\}$, the weighted degree of each vertex as $K_i = \sum_{j \in J_i} w_{ij}$, the total number of vertices as $N = |V|$, the total number of edges as $M = |E|$, and the sum of edge weights in the undirected graph as $m = \sum_{i, j \in V} w_{ij}/2$.
+\subsection{PageRank algorithm}
+\label{sec:pagerank}
 
+The PageRank, $R[v]$, of a vertex $v \in V$ in the graph $G(V, E)$, represents its \textit{importance} and is based on the number of incoming links and their significance. Equation \ref{eq:pr} shows how to calculate the PageRank of a vertex $v$ in the graph $G$, with $V$ as the set of vertices ($n = |V|$), $E$ as the set of edges ($m = |E|$), $G.in(v)$ as the incoming neighbors of vertex $v$, $G.out(v)$ as the outgoing neighbors of vertex $v$, and $\alpha$ as the damping factor. Each vertex starts with an initial PageRank of $1/n$. The \textit{power-iteration} method updates these values iteratively until the change is rank values is within a specified tolerance $\tau$ value (indicating that convergence has been achieved).
 
+The \textit{random surfer model} is a conceptual framework for the PageRank algorithm, where a random surfer moves through the web by following the links on each page. The damping factor, $\alpha$, is the probability that the random surfer will continue to the next page along one of the links, instead of jumping to a random page on the web, and has a default value of $0.85$. The PageRank of each page can be seen as the long-term probability that the random surfer will visit that page, given that he starts on a random page and follows links according to the damping factor. The PageRank values can be calculated by finding the eigenvector of a transition matrix that represents the probabilities of moving from one page to another in the Markov Chain.
 
-
-\subsection{Community detection}
-
-Disjoint community detection involves identifying a community membership mapping, $C: V \rightarrow \Gamma$, where each vertex $i \in V$ is assigned a community-id $c$ from the set of community-ids $\Gamma$. We denote the vertices of a community $c \in \Gamma$ as $V_c$, and the community that a vertex $i$ belongs to as $C_i$. Further, we denote the neighbors of vertex $i$ belonging to a community $c$ as $J_{i \rightarrow c} = \{j\ |\ j \in J_i\ and\ C_j = c\}$, the sum of those edge weights as $K_{i \rightarrow c} = \sum_{j \in J_{i \rightarrow c}} w_{ij}$, the sum of weights of edges within a community $c$ as $\sigma_c = \sum_{(i, j) \in E\ and\ C_i = C_j = c} w_{ij}$, and the total edge weight of a community $c$ as $\Sigma_c = \sum_{(i, j) \in E\ and\ C_i = c} w_{ij}$ \cite{com-leskovec21}.
-
-
-
-
-\subsection{Modularity}
-
-Modularity serves as a\ignore{fitness} metric for evaluating the quality of communities identified by heuristic-based community detection algorithms. It is calculated as the difference between the fraction of edges within communities and the expected fraction if edges were randomly distributed, yielding a range of $[-0.5, 1]$, where higher values signify superior results \cite{com-brandes07}.\ignore{The optimization of this metric theoretically leads to the optimal grouping \cite{com-newman04, com-traag11}.} The modularity $Q$ of identified communities is determined using Equation \ref{eq:modularity}, where $\delta$ represents the Kronecker delta function ($\delta (x,y)=1$ if $x=y$, $0$ otherwise). The \textit{delta modularity} of moving a vertex $i$ from community $d$ to community $c$, denoted as $\Delta Q_{i: d \rightarrow c}$, can be calculated using Equation \ref{eq:delta-modularity}.
+Presence of dead ends is an issue that arises when computing the PageRank of a graph. A dead end is a vertex with no out-link, which forces the random surfer to jump to a random page on the web. Or equivalently, a dead end contributes its rank among all the vertices in the graph (including itself). This introduces a global teleport rank contribution that must be computed every iteration, and can be considered an overhead. We resolve this issue by adding self-loops to all the vertices in the graph.
 
 \begin{equation}
-\label{eq:modularity}
-  Q
-  = \frac{1}{2m} \sum_{(i, j) \in E} \left[w_{ij} - \frac{K_i K_j}{2m}\right] \delta(C_i, C_j)
-  = \sum_{c \in \Gamma} \left[\frac{\sigma_c}{2m} - \left(\frac{\Sigma_c}{2m}\right)^2\right]
-\end{equation}
-
-\begin{equation}
-\label{eq:delta-modularity}
-  \Delta Q_{i: d \rightarrow c}
-  = \frac{1}{m} (K_{i \rightarrow c} - K_{i \rightarrow d}) - \frac{K_i}{2m^2} (K_i + \Sigma_c - \Sigma_d)
+\label{eq:pr}
+    R[v] = \alpha \times \sum_{u \in G.in(v)} \frac{R[u]}{|G.out(u)|} + \frac{1 - \alpha}{n}
 \end{equation}
 
 
 
 
-\subsection{Louvain algorithm}
-\label{sec:about-louvain}
+\subsection{Parallel Algorithms for Static Graphs}
+\label{sec:about-static}
 
-The Louvain method \cite{com-blondel08} is an agglomerative algorithm that optimizes modularity to identify high quality disjoint communities in large networks. It has a time complexity of $O (L |E|)$, where $L$ is the total number of iterations performed, and a space complexity of $O(|V| + |E|)$ \cite{com-lancichinetti09}. This algorithm comprises two phases: the \textit{local-moving phase}, in which each vertex $i$ greedily decides to join the community of one of its neighbors $j \in J_i$ to maximize the increase in modularity $\Delta Q_{i:C_i \rightarrow C_j}$ (using Equation \ref{eq:delta-modularity}), and the \textit{aggregation phase}, where all vertices in a community are merged into a single super-vertex. These phases constitute one pass, which is repeated until there is no further increase in modularity is observed \cite{com-blondel08, com-leskovec21}.\ignore{We observe that Louvain obtains high-quality communities, with $3.0 - 30\%$ higher modularity than that obtained by LPA, but requires $2.3 - 14\times$ longer to converge.}
+\subsubsection{With-barrier PageRank \cite{rank-garg16}}
+\label{sec:withbarrier}
+
+This is the standard implementation of parallel PageRank. Here the main thread forks into the desired number of threads at the start of each iteration, each thread computes ranks for a subset of vertices in the graph, and then each thread waits for the other threads to finish each iteration at the barrier (join). The main thread \textit{waits} for other threads to finish each iteration at the \textit{barrier}. This process repeats until the ranks converge, i.e., the change in ranks lies within a specified tolerance $\tau$. The computation of ranks of vertices is synchronous in each iteration, by maintaining the updated ranks in a separate vector, similar to the \textit{Jacobi} method. This helps avoid interference between threads and variability in the final result. In this paper, we refer to \textit{Static With-barrier} PageRank as \StaWbar{}.
+
+\paragraph{Work balancing in With-barrier PageRank:}
+
+Static scheduling distributes work among threads such that each thread works on a designated subset of vertices (in OpenMP) \cite{openmp-chapman07}. It has no scheduling overhead, but is susceptible to work imbalance. An edge-balanced technique evenly distributes work, by assigning vertices to threads such that the number of edges per thread is roughly the same \cite{rank-eedi22}. Alternatively, one can distribute work with \textit{dynamic schedule}, which allows each thread to select work from a global pool \cite{openmp-chapman07}. Such a distribution allows the work to be balanced (in the absence of thread sleep), but has scheduling overhead.
 
 
 
 
-\subsection{Leiden algorithm}
-\label{sec:about-leiden}
+\subsection{Dynamic Graphs}
+\label{sec:about-dynamic}
 
-As mentioned earlier, the Louvain method, while effective, may identify internally disconnected communities and arbitrarily badly connected ones. Traag et al. \cite{com-traag19} proposed the Leiden algorithm to address these issues. The algorithm introduces a \textit{refinement phase} subsequent to the local-moving phase, wherein vertices within each community undergo additional updates to their community membership within their community bounds (obtained from the local-moving phase), starting from a singleton community. This is performed in a randomized manner, with the probability of joining a neighboring community within its community bound being proportional to the delta-modularity of the move. This facilitates the identification of sub-communities within those obtained from the local-moving phase. The Leiden algorithm not only guarantees that all communities are well separated (akin to the Louvain method), but also are well connected. Once communities have converged, it is guaranteed that all vertices are optimally assigned, and all communities are subset optimal \cite{com-traag19}. It has a time complexity of $O (L |E|)$, where $L$ is the total number of iterations performed, and a space complexity of $O(|V| + |E|)$, similar to the Louvain method.
+A dynamic graph can be viewed as a sequence of graphs, where $G^t(V^t, E^t)$ denotes the graph at time step $t$. The changes between graphs $G^{t-1}(V^{t-1}, E^{t-1})$ and $G^t(V^t, E^t)$ at consecutive time steps $t-1$ and $t$ can be denoted as a batch update $\Delta^t$ at time step $t$ which consists of a set of edge deletions $\Delta^{t-} = \{(u, v)\ |\ u, v \in V\} = E^{t-1} \setminus E^t$ and a set of edge insertions $\Delta^{t+} = \{(u, v)\ |\ u, v \in V\} = E^t \setminus E^{t-1}$.
+
+\paragraph{Interleaving of graph update and computation:}
+
+Changes to the graph arrive in a batched manner, with updating of the graph and execution of the desired algorithm being interleaved (i.e., there is only one writer upon the graph at a given point of time). In case it is desirable to update the graph while an algorithm is still running, a snapshot of the graph needs to be obtained, upon which the desired algorithm may be executed. See for example Aspen graph processing framework which significantly minimizes the cost of obtaining a read-only snapshot of the graph \cite{graph-dhulipala19}.
+
+
+
+
+\subsection{Parallel Algorithms for Computing PageRank on Dynamic Graphs}
+
+\subsubsection{Naive-dynamic approach \cite{rank-zhang17}}
+\label{sec:about-naive}
+
+This is a straightforward approach of updating ranks of vertices in dynamic networks. Here, one initializes the ranks of vertices with ranks obtained from previous snapshot of the graph and runs the PageRank algorithm on all vertices. Rankings obtained through this method will be at least as accurate as those obtained through the static algorithm. In this paper, we refer to \textit{Naive-dynamic With-barrier} PageRank as \NaiWbar{}. Zhang et al. \cite{rank-zhang17} have explored the \textit{Naive-dynamic} approach in the hybrid CPU-GPU setting.
+
+
+\subsubsection{Dynamic Traversal approach \cite{rank-desikan05, rank-giri20}}
+\label{sec:about-traversal}
+
+With this approach, one skips processing of vertices that have no chance of their rank being updated as a result of the given batch update. For each edge deletion/insertion $(u, v)$ in the batch update, one marks all the vertices reachable from the vertex $u$ in the graph $G^{t-1}$ or the graph $G^t$ as affected (using Depth/Breadth First Search). Giri et al. \cite{rank-giri20} have explored the \textit{Dynamic Traversal} approach in the hybrid CPU-GPU setting. On the other hand, Banerjee et al. \cite{rank-sahu22} have explored this approach in the CPU and GPU settings separately where they compute the ranks of vertices in topological order of strongly connected components (SCCs) to minimize unnecessary computation. They borrow this ordered processing of SCCs from the original static algorithm proposed by Garg et al. \cite{rank-garg16}.
+
+
+
+
+% Asynchronous PageRank computation? No.
+% Dynamic Traversal (BFS/DFS) approach
+% Parallel Dynamic Traversal (DT) approach

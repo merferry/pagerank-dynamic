@@ -3,55 +3,79 @@
 
 \subsubsection{System used}
 
-We employ a server equipped with two Intel Xeon Gold 6226R processors, each featuring $16$ cores running at a clock speed of $2.90$ GHz. Each core is equipped with a $1$ MB L1 cache, a $16$ MB L2 cache, and a $22$ MB shared L3 cache. The system is configured with $376$ GB RAM and set up with CentOS Stream 8.
+We experiment on a system consisting of a $64$-core x86-based AMD EPYC-7742 processor running at $2.25$ GHz. Each core has an L1 cache of $4$ MB, an L2 cache of $32$ MB, and a shared L3 cache of $256$ MB. The server has $512$ GB DDR4 system memory, and runs on Ubuntu $20.04$.
 
 
 \subsubsection{Configuration}
 
-We use 32-bit integers for vertex ids and 32-bit float for edge weights but use 64-bit floats for computations and hashtable values. We utilize $64$ threads to match the number of cores available on the system (unless specified otherwise). For compilation, we use GCC 8.5 and OpenMP 4.5.
+We use 32-bit integers for vertex ids and 64-bit floating point numbers for vertex ranks. To mark vertices as affected, we use an 8-bit integer vector. The rank computation uses OpenMP's \textit{dynamic schedule} with a chunk size of $2048$, which provides dynamic work-balancing among threads. We use a damping factor of $\alpha = 0.85$ \cite{rank-langville06}, an iteration tolerance of $\tau = 10^{-10}$ \cite{rank-dubey22} using $L\infty$-norm \cite{rank-plimpton11}, and limit the \texttt{MAX\_ITERATIONS} performed to $500$ \cite{nvgraph} for all experiments. We run all experiments with $64$ threads to match the number of cores available on the system (unless specified otherwise). For compilation, we use GCC $9.4$ and OpenMP $5.0$.
 
 
 \subsubsection{Dataset}
 
-The graphs used in our experiments are given in Table \ref{tab:dataset}. These are sourced from the SuiteSparse Matrix Collection \cite{suite19}. In the graphs, number of vertices vary from $3.07$ to $214$ million, and number of edges vary from $25.4$ million to $3.80$ billion. We ensure edges to be undirected and weighted with a default of $1$.
+We use four classes of graphs from the \textit{SuiteSparse Matrix Collection} \cite{suite19} in our experiments, shown in Table \ref{tab:dataset}. The number of vertices in these graphs varies from $3.07$ million to $214$ million, and the number of edges varies from $37.4$ million to $1.98$ billion. The presence of dead ends (vertices with no out-links) introduces a global teleport rank contribution that must be computed every iteration. We eliminate this overhead by adding self-loops to all the vertices in the graph (see also \cite{rank-andersen07, rank-langville06}).
+%% We also use temporal graph for certain experiments, mention here?
 
 \input{src/tab-dataset}
-\input{src/fig-leiden-compare}
-\input{src/fig-gve-compare}
+
+
+\subsubsection{Batch Generation}
+\label{sec:batch-generation}
+
+%% This needs to be updated
+We take each base (static) graph from the dataset and generate a random batch update consisting of an equal mix of edge deletions and insertions. To prepare the set of edges deleted, we delete each existing edge with a uniform probability. We prepare the set of edges to insert by choosing pairs of vertices with equal probability. For the sake of simplicity, we ensure that no new vertices are added to or removed from the graph. We measure the batch size as a fraction of the total number of edges in the original graph and adjust it from $10^{-8}$ to $0.1$ (i.e., $10^{-8}|E|$ to $0.1|E|$), and generate multiple batches for each batch size (for averaging). Along with each batch update, we add self-loops to all vertices.
+
+
+\subsubsection{Measurement}
+\label{sec:measurement}
+
+We measure the time taken by each approach on the updated graph entirely, including any preprocessing cost and the time taken to detect convergence, but exclude time taken for memory allocation and de-allocation. The average time taken by a given method at a given batch size is obtained by taking the geometric mean of time taken for the same batch size for each of the different input graphs. Accordingly, the average speedup is the ratio of these. Further, we measure the error/accuracy of a given approach by measuring the $L\infty$-norm of the ranks produced with respect to ranks obtained from a reference \textit{Static With-barrier} PageRank run on the updated graph with a very low tolerance of $\tau = 10^{-100}$ (limited to $500$ iterations).
 
 
 
 
-\subsection{Comparing Performance of GVE-Leiden}
+\subsection{Performance of DF-PageRank}
 
-We now compare the performance of GVE-Leiden with the original Leiden \cite{com-traag19}, igraph Leiden \cite{csardi2006igraph}, and NetworKit Leiden \cite{staudt2016networkit}. For the original Leiden, we use a C++ program to initialize a \texttt{ModularityVertexPartition} upon the loaded graph, and invoke \texttt{optimise\_partition()} to obtain the community membership of each vertex in the graph. For igraph Leiden, we use \texttt{igraph\_commun} \texttt{ity\_leiden()} with a resolution of $1/2|E|$, a beta of $0.01$, and request the algorithm to run until convergence. For NetworKit Leiden, we write a Python script to call \texttt{ParallelLeiden()}, while limiting the number of passes to $10$. For each graph, we measure the runtime of each implementation and the modularity of the communities obtained, five times, for averaging. We also save the community membership vector to a file and later count the number of disconnected components using Algorithm \ref{alg:disconnected}. In all instances, we use modularity as the quality function to optimize for.
+We first study the performance of \FroWbar{} and \FroBarf{}  on batch updates of size $10^{-8} |E|$ to $0.1 |E|$, in the absence of faults, and compare them with \StaWbar{}, \StaBarf{}, \NaiWbar{}, and \NaiBarf{}. Figure \ref{fig:no-failure} plots the runtime of the six mentioned approaches. In Figure \ref{fig:no-failure}, solid lines represent the runtime of the barrier-free algorithms and dashed lines represent the runtime of the corresponding algorithms using a barrier. In addition to the runtime of the above algorithms on each instance from Table \ref{tab:dataset} shown in Figure \ref{fig:no-failure-all}, the mean runtime of each algorithm is shown in Figure \ref{fig:no-failure-am-time}. The labels on the line corresponding to \FroBarf{} indicate its speedup over \NaiBarf{}.
 
-Figure \ref{fig:leiden-compare--runtime} shows the runtimes of the original Leiden, igraph Leiden, NetworKit Leiden, and GVE-Leiden on each graph in the dataset. On the \textit{sk-2005} graph, GVE-Leiden finds communities in $10.8$ seconds, and thus achieve a processing rate of $352$ million edges/s. Figure \ref{fig:leiden-compare--speedup} shows the speedup of GVE-Leiden with respect to each implementation mentioned above. GVE-Leiden is on average $373\times$, $86\times$, and $7.2\times$ faster than the original Leiden, igraph Leiden, and NetworKit Leiden respectively. Figure \ref{fig:leiden-compare--modularity} shows the modularity of communities obtained with each implementation. GVE-Leiden on average obtains $0.1\%$ lower modularity than the original Leiden and igraph Leiden, and $26\%$ higher modularity than NetworKit Leiden (especially on road networks and protein k-mer graphs). Finally, Figure \ref{fig:leiden-compare--disconnected} shows the fraction of disconnected communities obtained with each implementation. Here, the absence of bars indicates the absence of disconnected communities. Communities identified by GVE-Leiden on average have $88\times$, $145\times$, and $0.76\times$ disconnected communities than the original Leiden, igraph Leiden, and NetworKit Leiden respectively. While this compares unfavorably with the original Leiden and igraph Leiden (especially on \textit{social networks}, \textit{road networks}, and \textit{protein k-mer graphs}), it may be simpler to split the disconnected communities obtained from GVE-Leiden as a post-processing step. We would like to address this issue some time in the future.
+In Figure \ref{fig:no-failure-am-time}, we demonstrate that our proposed \FroBarf{}  is faster than \NaiBarf{} until a batch size of $10^{-3} |E|$, with an average speedup of $4.6\times$. From a batch size of $10^{-3} |E|$ (a batch update consisting of more than a million edge deletions / insertions on a billion-edge graph), the performance drops below \NaiBarf{} and \StaBarf{}. Such large batch sizes result in {\em nearly} all of the vertices getting marked as {\em affected}, and hence the performance drops. Note in Figure \ref{fig:no-failure-all} that \FroBarf{} performs well on \textit{road networks} and \textit{protein k-mer graphs}, good enough on \textit{web graphs}, but poorly on \textit{social networks}. This seems to be associated to sparsity of the graphs as \FroBarf{} performing well on sparse graphs.
 
-\ignore{
-Q> Why does Leiden have some disconnected communities still?
-Q> Why does Leiden not work with road networks?
-I think the answer for both questions has to do with parallelism. There is a race between threads to pick a suitable community. If the size of each community is large, this generally does not badly affect modularity. But with small community bounds (in refinement phase of Leiden) the race can lead to bad community memberships. I will try to come up a few solutions to this. This is not an issue with sequential, so Traag et al. dont observe this issue in their original paper.
-}
-
-Next, we compare the performance of GVE-Leiden with GVE-Louvain \cite{sahu2023gvelouvain}, our parallel implementation of the Louvain method. As above, for each graph in the dataset, we run both algorithms 5 times to minimize measurement noise\ignore{, and report the averages in Figures \ref{fig:gve-compare--runtime}, \ref{fig:gve-compare--speedup}, \ref{fig:gve-compare--modularity}, and \ref{fig:gve-compare--disconnected}}. Figure \ref{fig:gve-compare--runtime} shows the runtimes of GVE-Louvain and GVE-Leiden on each graph in the dataset. Figure \ref{fig:gve-compare--speedup} shows the speedup of GVE-Leiden with respect to GVE-Louvain. GVE-Leiden is on average $36\%$ slower than GVE-Louvain. This increase in computation time is a trade-off for obtaining significantly fewer disconnected communities, as given below. Figure \ref{fig:gve-compare--modularity} shows the modularity of communities obtained with GVE-Louvain and GVE-Leiden. GVE-Leiden on average obtains $0.3\%$ higher modularity than GVE-Louvain. Finally, Figure \ref{fig:gve-compare--disconnected} shows the fraction of internally-disconnected communities obtained with GVE-Louvain and GVE-Leiden. Communities identified by GVE-Leiden on average have an $11$-fold decrease in the number of disconnected communities than GVE-Louvain.
-
-\input{src/fig-leiden-splits}
-\input{src/fig-leiden-hardness}
-\input{src/fig-leiden-ss}
+\input{src/fig-insertions-runtime}
+\input{src/fig-insertions-speedup}
+\input{src/fig-insertions-error}
+\input{src/fig-deletions-runtime}
+\input{src/fig-deletions-speedup}
+\input{src/fig-deletions-error}
+\input{src/fig-8020-runtime}
+\input{src/fig-8020-speedup}
+\input{src/fig-8020-error}
 
 
 
 
-\subsection{Analyzing Performance of GVE-Leiden}
+\paragraph{Accuracy of DF-PageRank}
 
-We now analyze the performance of GVE-Leiden. The phase-wise and pass-wise split of GVE-Leiden is shown in Figures \ref{fig:leiden-splits--phase} and \ref{fig:leiden-splits--pass} respectively. Figure \ref{fig:leiden-splits--phase} reveals that GVE-Leiden devotes a significant portion of its runtime to the local-moving and refinement phases on \textit{web graphs}, \textit{road networks}, and \textit{protein k-mer graphs}, while it dedicates majority of its runtime in the aggregation phase on \textit{social networks}. The pass-wise split, shown in Figure \ref{fig:leiden-splits--pass}, indicates that the first pass is time-intensive for high-degree graphs (\textit{web graphs} and \textit{social networks}), while subsequent passes take precedence in execution time on low-degree graphs (\textit{road networks} and \textit{protein k-mer graphs}).
+The error with respect to reference PageRank for \FroBarf{} (as well as \FroWbar{}), as shown in Figure \ref{fig:no-failure-am-error}, starts increasing from $5\times10^{-10}$ to $9\times10^{-10}$ at a batch size of $10^{-6} |E|$ to $10^{-4} |E|$, and then drops back at a batch size of $10^{-2} |E|$. \textit{Dynamic Frontier} approach picks only outgoing neighbors of those vertices to mark whose rank changes by at least a frontier tolerance of $\tau' = \tau/1000$ (where tolerance $\tau = 10^{-10}$). The error falls back because most vertices are getting marked as affected with increasing batch size.  Note that the error with \FroBarf{} lies within the acceptable range of $[0, 10^{-9})$ for a tolerance of $\tau = 10^{-10}$. There is no extra overhead introduced by our barrier-free approach in the absence of faults.
+% Note that the slowdown of the \textit{Static} PageRank at a batch size of $0.1 |E|$ can be attributed to the difference in the size of the modified graph. This is because \textit{Dynamic Frontier} approach misses to mark some vertices as affected.
 
-On average, GVE-Leiden spends $37\%$ of its runtime in the local-moving phase, $27\%$ in the refinement phase, $24\%$ in the aggregation phase, and $12\%$ in other steps (initialization, renumbering communities, dendrogram lookup, and resetting communities). Further, $73\%$ of the runtime is consumed by the first pass of the algorithm, which is computationally demanding due to the size of the original graph (subsequent passes operate on super-vertex graphs). We also observe that graphs with lower average degree (\textit{road networks} and \textit{protein k-mer graphs}) and those with poor community structure (e.g., \verb|com-LiveJournal| and \verb|com-Orkut|) exhibit a higher $\text{runtime}/|E|$ factor, as shown in Figure \ref{fig:leiden-hardness}.
+% \input{src/fig-fault-none}
 
 
 
+\subsection{Comparing Performance of DF-PageRank}
 
-\subsection{Strong Scaling of GVE-Leiden}
+\subsection{Analyzing Performance of DF-PageRank}
 
-Finally, we assess the strong scaling performance of GVE-Leiden. In this analysis, we vary the number of threads from $1$ to $64$ in multiples of $2$ for each input graph, and measure the total time taken for GVE-Leiden to identify communities, encompassing its phase splits (local-moving, refinement, aggregation, and others), repeated five times for averaging. The results are shown in Figure \ref{fig:leiden-ss}. With 32 threads, GVE-Leiden achieves an average speedup of $10.9\times$ compared to a single-threaded execution, indicating a performance increase of $1.6\times$ for every doubling of threads. Nevertheless, scalability is restricted due to the sequential nature of steps/phases in the algorithm. At 64 threads, GVE-Leiden is affected by NUMA effects, resulting in a speedup of only $12.9\times$.
+Task-wise split of DF-PageRank with varying batch sizes.
+
+\subsection{Strong Scaling of DF-PageRank}
+
+We next study the strong-scaling behavior of \FroWbar{} and \FroBarf{} on batch updates of a fixed size of $10^{-4} |E|$ in the absence of faults. Here, we measure the speedup of each algorithm with an increasing number of threads from $1$ to $64$ in multiples of $2$ with respect to a single-threaded execution of the algorithm. We additionally compare \StaWbar{}, \StaBarf{}, \NaiWbar{}, and \NaiBarf{}.
+
+We observe from Figure \ref{fig:strong-scaling} that all algorithms exhibit a good decrease in their run time over increasing number of threads. With $64$ threads, \StaBarf{}, \NaiBarf{}, and \FroBarf{} offers an average speedup of $21\times$, while \StaWbar{}, \NaiWbar{}, and \FroWbar{} offer an average speedup of $15\times$ over a single thread.
+% Thus, \FroBarf{} offers good scaling performance.
+
+
+\subsection{Weak Scaling of DF-PageRank}
+
+\subsection{Behavior of DF-PageRank on Temporal Graphs}

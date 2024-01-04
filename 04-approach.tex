@@ -9,61 +9,106 @@ We attempt two approaches of the Leiden algorithm. One uses a \textit{greedy ref
 
 \ignore{We fixed a bug that caused the Leiden algorithm to fail in finding communities on road networks and kmer graphs. The issue was forgetting to reset the affected vertices flags before running the refinement phase.}
 
-\input{src/fig-leidenopt-runtime}
-\input{src/fig-leidenopt-modularity}
-\input{src/fig-leiden-pass}
+
+
+
+\subsubsection{Implementation details}
+
+We use a top-level parallel block, OpenMP's dynamic loop scheduling (with a chunk size of $2048$) along with \verb|nowait| directive, and a single shared rank vector to implement our \textit{Barrier-free} PageRank. Dynamic loop scheduling causes each running thread obtains a chunk of vertices to be processed from a global work pool, resulting in the running threads to have a balanced workload. This also enables our algorithm to be fault-tolerant to random thread delays and crashes (in the crash-stop model).
 
 
 
 
-\subsection{Our optimized Leiden implementation}
+\subsection{Our Naive-dynamic Barrier-free PageRank (\NaiBarf{})}
+\label{sec:naive}
 
-We now explain the implementation of GVE-Leiden in Algorithms \ref{alg:leiden}, \ref{alg:leidenlm}, \ref{alg:leidenre}, and \ref{alg:leidenag}. A flow diagram illustrating the first pass of GVE-Leiden is shown in Figure \ref{fig:leiden-pass}.
+As discussed previously, the \textit{Naive-dynamic} approach is a simple method for updating vertex ranks in dynamic networks by initializing them with ranks from the previous snapshot. We apply this approach to our improved \textit{Barrier-free} PageRank (shown in Algorithm \ref{alg:barrier-free-naive-dynamic}), and refer to it as \NaiBarf{}. We also include the pseudocode for \textit{Naive-dynamic With-barrier} PageRank (\NaiWbar{}) for reference in Algorithm \ref{alg:with-barrier-naive-dynamic}.
 
-
-\subsubsection{Main step of GVE-Leiden}
-
-The main step of GVE-Leiden (\texttt{leiden()} function) is outlined in Algorithm \ref{alg:leiden}. It encompasses initialization, the local-moving phase, the refinement phase, and the aggregation phase. Here, the \texttt{leiden()} function accepts the input graph $G$, and returns the community membership $C$ of each vertex. In line \ref{alg:leiden--initialization}, we first initialize the community membership $C$ for each vertex in $G$, and perform passes of the Leiden algorithm, limited to $MAX\_PASSES$ (lines \ref{alg:leiden--passes-begin}-\ref{alg:leiden--passes-end}). During each pass, we initialize the total edge weight of each vertex $K'$, the total edge weight of each community $\Sigma'$, and the community membership $C'$ of each vertex in the current graph $G'$ (line \ref{alg:leiden--reset-weights}).
-
-Subsequently, in line \ref{alg:leiden--local-move}, we perform the local-moving phase by invoking \texttt{leidenMove()} (Algorithm \ref{alg:leidenlm}), which optimizes community assignments. Following this, we set the \textit{community bound} of each vertex (for the refinement phase) as the community membership of each vertex just obtained, and reset the membership of each vertex, and the total weight of each community as singleton vertices in line \ref{alg:leiden--reset-again}. In line \ref{alg:leiden--refine}, the refinement phase is carried out by invoking \texttt{leidenRefine()} (Algorithm \ref{alg:leidenre}), which optimizes the community assignment of each vertex within its community bound. If either the local-moving or the refinement phase converged in a single iteration, global convergence is implied and we terminate the passes (line \ref{alg:leiden--globally-converged}). Further, if the drop in community count $|\Gamma|$ is marginal, we halt at the current pass (line \ref{alg:leiden--aggregation-tolerance}).
-
-If convergence has not been achieved, we proceed to renumber communities (line \ref{alg:leiden--renumber}), update top-level community memberships $C$ with dendrogram lookup (line \ref{alg:leiden--lookup}), perform the aggregation phase by calling \texttt{leidenAggregate()} (Algorithm \ref{alg:leidenag}), and adjust the convergence threshold for subsequent passes, i.e., perform threshold scaling (line \ref{alg:leiden--threshold-scaling}). The next pass commences in line \ref{alg:leiden--passes-begin}. At the end of all passes, we perform a final update of the top-level community memberships $C$ with dendrogram lookup (line \ref{alg:leiden--lookup-last}), and return the top-level community membership $C$ of each vertex in $G$.
-
-\input{src/alg-leiden}
-\input{src/alg-leidenlm}
-\input{src/alg-leidenre}
-\input{src/alg-leidenag}
-
-
-\subsubsection{Local-moving phase of GVE-Leiden}
-
-The pseuodocode for the local-moving phase of GVE-Leiden is shown in Algorithm \ref{alg:leidenlm}, which iteratively moves vertices between communities to maximize modularity. Here, the \texttt{leidenMove()} function takes the current graph $G'$, community membership $C'$, total edge weight of each vertex $K'$ and each community $\Sigma'$, the iteration tolerance $\tau$ as input, and returns the number of iterations performed $l_i$.
-
-Lines \ref{alg:leidenlm--iterations-begin}-\ref{alg:leidenlm--iterations-end} represent the main loop of the local-moving phase. In line \ref{alg:leidenlm--reset-affected}, we first mark all vertices as unprocessed. Then, in line \ref{alg:leidenlm--init-deltaq}, we initialize the total delta-modularity per iteration $\Delta Q$. Next, in lines \ref{alg:leidenlm--loop-vertices-begin}-\ref{alg:leidenlm--loop-vertices-end}, we iterate over unprocessed vertices in parallel. For each unprocessed vertex $i$, we mark $i$ as processed - vertex pruning (line \ref{alg:leidenlm--prune}), scan communities connected to $i$ - excluding self (line \ref{alg:leidenlm--scan}), determine the best community $c*$ to move $i$ to (line \ref{alg:leidenlm--best-community-begin}), and calculate the delta-modularity of moving $i$ to $c*$ (line \ref{alg:leidenlm--best-community-end}). We then update the community membership of $i$ (lines \ref{alg:leidenlm--perform-move-begin}-\ref{alg:leidenlm--perform-move-end}) and mark its neighbors as unprocessed (line \ref{alg:leidenlm--remark}) if a better community was found. In line \ref{alg:leidenlm--locally-converged}, we check if the local-moving phase has converged. If so, we break out of the loop (or if $MAX\_ITERATIONS$ is reached). At the end, in line \ref{alg:leidenlm--return}, we return the number of iterations performed $l_i$.
-
-
-\subsubsection{Refinement phase of GVE-Leiden}
-
-The pseuodocode for the refinement phase of GVE-Leiden is presented in Algorithm \ref{alg:leidenlm}. This is similar to the local-moving phase, but utilizes the obtained community membership of each vertex as a \textit{community bound}, where each vertex must choose to join the community of another vertex within its community bound.\ignore{Similar to the local-moving phase however, vertices iteratively move between communities to maximize modularity.} At the start of the refinement phase, the community membership of each vertex is reset, such that each vertex belongs to its own community. Here, the \texttt{leidenRefine()} function takes the current graph $G'$, the community bound of each vertex $C'_B$, the initial community membership $C'$ of each vertex, the total edge weight of each vertex $K'$, the initial total edge weight of each community $\Sigma'$, and the current per iteration tolerance $\tau$ as input, and returns the number of iterations performed $l_j$.
-
-Lines \ref{alg:leidenre--iterations-begin}-\ref{alg:leidenre--iterations-end} represent the core of the refinement phase. First, we initialize all vertices as unprocessed (line \ref{alg:leidenre--reset-affected}). Subsequently, we initialize the per-iteration delta-modularity $\Delta Q$ (line \ref{alg:leidenre--init-deltaq}), and iterate over unprocessed vertices in parallel (lines \ref{alg:leidenre--loop-vertices-begin}-\ref{alg:leidenre--loop-vertices-end}). For each unprocessed vertex $i$, we prune $i$ (line \ref{alg:leidenre--prune}), scan communities connected to $i$ within the \textit{same community bound} - excluding self (line \ref{alg:leidenre--scan}), evaluate the best community $c*$ to move $i$ to (line \ref{alg:leidenre--best-community-begin}), and compute the delta-modularity of moving $i$ to $c*$ (line \ref{alg:leidenre--best-community-end}). If a better community was found, we update the community membership (lines \ref{alg:leidenre--perform-move-begin}-\ref{alg:leidenre--perform-move-end}) of $i$, and mark its neighbors as unprocessed (line \ref{alg:leidenre--remark}). In line \ref{alg:leidenre--locally-converged}, we check if the refinement phase has converged. If so, we stop iterating (or if $MAX\_ITERATIONS$ is reached). Finally, we return the number of iterations performed $l_j$ (line \ref{alg:leidenre--return}).
-
-\input{src/alg-disconnected}
-
-
-\subsubsection{Aggregation phase of GVE-Leiden}
-
-Finally, we show the psuedocode for the aggregation phase in Algorithm \ref{alg:leidenag}, where communities are aggregated into super-vertices in preparation for the next pass of the Leiden algorithm (which operates on the super-vertex graph). Here, the \texttt{leidenAggregate()} function takes the current graph $G'$ and the community membership $C'$ as input, and returns the super-vertex graph $G''$.
-
-In lines \ref{alg:leidenag--coff-begin}-\ref{alg:leidenag--coff-end}, the offsets array for the community vertices CSR $G'_{C'}.offsets$ is obtained. This is achieved by initially counting the number of vertices in each community using \texttt{countCommunityVert} \texttt{ices()} and subsequently performing an exclusive scan on the array. In lines \ref{alg:leidenag--comv-begin}-\ref{alg:leidenag--comv-end},  a parallel iteration over all vertices is performed to atomically populate vertices belonging to each community into the community graph CSR $G'_{C'}$. Following this, the offsets array for the super-vertex graph CSR is obtained by overestimating the degree of each super-vertex. This involves calculating the total degree of each community with \texttt{communityTotalDegree()} and performing an exclusive scan on the array (lines \ref{alg:leidenag--yoff-begin}-\ref{alg:leidenag--yoff-end}). As a result, the super-vertex graph CSR becomes holey, featuring gaps between the edges and weights arrays of each super-vertex in the CSR.
-
-Then, in lines \ref{alg:leidenag--y-begin}-\ref{alg:leidenag--y-end}, a parallel iteration over all communities $c \in [0, |\Gamma|)$ is performed. For each vertex $i$ belonging to community $c$, all communities $d$ (with associated edge weight $w$), linked to $i$ as defined by \texttt{scanCommunities()} in Algorithm \ref{alg:leidenlm}, are added to the per-thread hashtable $H_t$. Once $H_t$ is populated with all communities (and associated weights) linked to community $c$, these are atomically added as edges to super-vertex $c$ in the super-vertex graph $G''$. Finally, in line \ref{alg:leidenag--return}, we return the super-vertex graph $G''$.
+% \input{src/alg-barrier-free-naive-dynamic}
+% \input{src/alg-with-barrier-naive-dynamic}
 
 
 
 
-\subsection{Finding disconnected communities}
+\subsection{Our Dynamic Traversal Barrier-free PageRank (\TraBarf{})}
+\label{sec:traversal}
 
-We now outline our parallel algorithm for identifying disconnected communities, given the original graph and the community membership of each vertex. The core concept involves determining the size of each community, selecting a vertex from each community, traversing within the community from that vertex (avoiding adjacent communities), and marking a community as disconnected if all its vertices cannot be reached. We explore four distinct approaches, differing in the use of parallel Depth-First Search (DFS) or Breadth-First Search (BFS) and whether per-thread or shared \textit{visited} flags are employed. If shared visited flags are used, each thread scans all vertices but processes only its assigned community based on the community ID. Our findings suggest that utilizing parallel BFS traversal with a shared flag vector yields the fastest results. As this is not a heuristic algorithm, all approaches produce identical outcomes. Algorithm \ref{alg:disconnected} illustrates the pseudocode for this approach. Here, the \texttt{disconnectedCommunities()} function takes the input graph $G$ and the community membership $C$ as input, and it returns the disconnected flag $D$ for each community.
+The \textit{Dynamic Traversal} approach (as discussed in Section \ref{sec:about-traversal}) marks all vertices reachable from every vertex involved in edge deletions or insertions as affected. In our barrier-free implementation of this approach (shown in Algorithm \ref{alg:barrier-free-dynamic-traversal}), which we refer to as \TraBarf{}, we allow any thread to start computing ranks as soon as it has finished marking affected vertices (based on edge updates assigned to it). Additionally, we provide the pseudocode for \textit{Dynamic Traversal With-barrier} PageRank (\TraWbar{}), which can be referred to in Algorithm \ref{alg:with-barrier-dynamic-traversal}.
+% A simple dynamic algorithm works as follows. Set $\pr^t(v)$ to $\pr^{t-1}(v)$ for all nodes $v$, and run Algorithm CalculateRanks on $G^t$. This algorithm, which we label as Algorithm Naive-PageRank-BarrierFree. In other words, this simple approach does not distinguish vertices that are likely have a change in their pagerank values to those that do not have a change in their pagerank. 
 
-We now explain Algorithm \ref{alg:disconnected} in detail. First, in line \ref{alg:disconnected--init}, the disconnected community flag $D$, and the visited vertices flags $vis$ are initialized. In line \ref{alg:disconnected--sizes}, the size of each community $S$ is obtained in parallel using the \texttt{communitySizes()} function. Subsequently, each thread processes each vertex $i$ in the graph $G$ in parallel (lines \ref{alg:disconnected--loop-begin}-\ref{alg:disconnected--loop-end}). In line \ref{alg:disconnected--unreached}, the community membership of $i$ ($c$) is determined, and the count of vertices reached from $i$ is initialized to $0$. If community $c$ is empty or not in the work-list of the current thread $work_t$, the thread proceeds to the next iteration (line \ref{alg:disconnected--work}). If however the community $c$ is non-empty and in the work-list of the current thread $work_t$, BFS is performed from vertex $i$ to explore vertices in the same community, using lambda functions $f_{if}$ to conditionally perform BFS to vertex $j$ if it belongs to the same community, and $f_{do}$ to update the count of $reached$ vertices after each vertex is visited during BFS (line \ref{alg:disconnected--bfs}). If the number of vertices $reached$ during BFS is less than the community size $S[c]$, the community $c$ is marked as disconnected (line \ref{alg:disconnected--mark}). Finally, the size of the community $S[c]$ is updated to $0$, indicating that the community has been processed (line \ref{alg:disconnected--processed}). Note that the work-list $work_t$ for each thread with ID $t$, is defined as a set containing communities $[t\chi,\ t(\chi+1))\ \cup\ [T\chi + t\chi,\ T\chi + t(\chi+1))\ \cup\ \ldots$, where $\chi$ is the chunk size, and $T$ is the number of threads. We use a chunk size of $\chi = 1024$.
+However, our experiments show that the \textit{Dynamic Traversal} approach does not perform better than the \textit{Naive-dynamic} approach for any batch size. The overhead of this approach, due to several traversals required to identify the affected vertices, limits the performance of this approach.
+
+% \input{src/alg-barrier-free-dynamic-traversal}
+% \input{src/alg-with-barrier-dynamic-traversal}
+
+
+
+
+\subsection{Our Dynamic Frontier approach}
+\label{sec:frontier}
+
+The \textit{Naive-dynamic} approach processes all vertices in the graph until convergence. However, if a batch update $\Delta^{t-} \cup \Delta^{t+}$ is small compared to the total number of edges $|E|$, then it is expected that the ranks of only a few vertices change. Our proposed \textit{Dynamic Frontier} approach incorporates this aspect, and identifies affected vertices efficiently via an incremental process. We apply this approach to \textit{With-barrier} and \textit{Barrier-free} PageRank in Algorithms \ref{alg:with-barrier} and \ref{alg:barrier-free}, which we also denote as \FroWbar{} and \FroBarf{} respectively.
+
+
+\subsubsection{Explanation of the approach}
+\label{sec:frontier-explanation}
+
+Consider a batch update consisting of edge deletions $(u, v) \in \Delta^{t-}$ and insertions $(u, v) \in \Delta^{t+}$. We first initialize the rank of each vertex to that obtained in the previous snapshot of the graph.
+
+\input{src/fig-about-df}
+
+\paragraph{Initial marking of affected vertex on edge deletion/insertion:}
+
+For each edge deletion/insertion $(u, v)$, we initially mark the outgoing neighbors of the vertex $u$ in the previous $G^{t-1}$ and current graph snapshot $G^t$ as affected (lines \ref{alg:with-barrier--mark-begin}-\ref{alg:with-barrier--mark-end} in Algorithm \ref{alg:with-barrier}, and lines \ref{alg:barrier-free--mark-begin}-\ref{alg:barrier-free--mark-end} in Algorithm \ref{alg:barrier-free}).
+
+\paragraph{Incremental marking of affected vertices upon change in rank of a given vertex:}
+
+Next, while performing PageRank computation (lines \ref{alg:with-barrier--compute-begin}-\ref{alg:with-barrier--compute-end} in Algorithm \ref{alg:with-barrier}, and lines \ref{alg:barrier-free--compute-begin}-\ref{alg:barrier-free--compute-end} in Algorithm \ref{alg:barrier-free}), if the rank of any affected vertex $v$ changes in an iteration by an amount greater than the \textit{frontier tolerance} $\tau'$, we mark its outgoing neighbors as affected (lines \ref{alg:with-barrier--remark-begin}-\ref{alg:with-barrier--remark-end} in Algorithm \ref{alg:with-barrier}, and lines \ref{alg:barrier-free--remark-begin}-\ref{alg:barrier-free--remark-end} in Algorithm \ref{alg:barrier-free}). This process of marking vertices continues in every iteration.
+
+% \input{src/alg-with-barrier}
+% \input{src/alg-barrier-free}
+
+
+\subsubsection{A simple example}
+
+Figure \ref{fig:about-frontier} shows an example of the \textit{Dynamic Frontier} approach. The original graph, shown in Figure \ref{fig:about-frontier-01} consists of $16$ vertices. Subsequently, Figure \ref{fig:about-frontier-02} shows a batch update applied to the original graph involving the deletion of an edge from vertex $2$ to $1$ and the insertion of an edge from vertex $4$ to $12$. Following the batch update, we perform the initial step of the \textit{Dynamic Frontier} approach, marking outgoing neighbors of $2$ and $4$ as affected, i.e., $1$, $3$, $4$, $8$, and $12$ are marked as affected. Note that vertex $2$ is not affected as it is a source of the change while vertex $4$ being a neighbour of $2$ is also affected. Now, we are ready to execute the first iteration of PageRank algorithm.
+
+During the first iteration (see Figure \ref{fig:about-frontier-03}), the ranks of affected vertices are updated. Consider that the change in rank of vertices $1$ and $12$ is observed to be greater than frontier tolerance $\tau'$, shown with red border in Figure \ref{fig:about-frontier-03}. In response to this, the \textit{Dynamic Frontier} approach incrementally marks the outgoing neighbors of $1$ and $12$ as affected, specifically vertices $5$, $11$, and $14$.
+
+During the second iteration (see Figure \ref{fig:about-frontier-04}), the ranks of affected vertices are again updated. Further, consider that the change in rank of vertices $3$, $5$, $11$, and $14$ is observed to be greater than frontier tolerance $\tau'$, shown with red border in Figure \ref{fig:about-frontier-03}. As before, we mark the outgoing neighbors of $3$, $5$, $11$, and $14$ as affected, namely vertices $4$, $6$, and $15$.
+
+In the subsequent iteration, the ranks of affected vertices are again updated. If the change in rank of every vertex is within (iteration) tolerance $\tau$, the ranks of vertices have converged, and the algorithm terminates.
+
+
+
+
+\subsection{Dynamic Frontier With-barrier PageRank (\FroWbar{})}
+\label{sec:frontier-withbarrier}
+
+As mentioned in Section \ref{sec:withbarrier}, we perform a synchronous rank computation with \FroWbar{} using two rank vectors $R$, and $R_{new}$ (see Algorithm \ref{alg:with-barrier}).
+
+\paragraph{Tracking affected vertices:}
+
+To track vertices that are marked as affected due to the current batch update $\Delta^{t-} \cup \Delta^{t+}$, we use a flag vector $V_A$ (an 8-bit integer vector).
+
+\paragraph{Detecting convergence:}
+
+Note that $\Delta r$ represents the change in rank of single vertex, and $\Delta R$ represents the $L_\infty$-norm between the previous $R$ and the current rank vector $R_{new}$. When $\Delta R$ lies within (iteration) tolerance $\tau$, ranks are considered to have converged.
+
+
+
+
+\subsection{Determination of Frontier tolerance ($\tau'$)}
+
+Our experiments show that a frontier tolerance of $\tau' = \tau/1000$, where $\tau$ is the (iteration) tolerance, provides a good speedup with a maximum error of $10^{-9}$ at a batch size of $10^{-4} |E|$ compared to a mean error of $5 \times 10^{-10}$ for \NaiWbar{} and \NaiBarf{} with respect to ranks obtained from reference PageRank (see Section \ref{sec:measurement}). Thus, if an edge in the batch update affects the rank of vertex $u$ (by a small amount), directly or indirectly, all its outgoing neighbors $v' \in G^t.out(u)$ will also be marked as affected, as they are likely to have a change in rank as well.
+
+\input{src/fig-approach-async}
+\input{src/fig-adjust-frontier}
+
+
+
+
+% Dynamic Frontier (DF) approach
+% Adjusting tolerance, Frontier tolerance, Mark DelRank / DelContrib
+% Dynamic Frontier optimizations
+% Edge-balanced approach (Chunk size)

@@ -9,6 +9,6 @@
     \label{fig:deletions-runtime--all}
     \includegraphics[width=0.58\linewidth]{out/deletions-runtime-all.pdf}
   } \\[-1ex]
-  \caption{Deletions Time taken (solid lines), and modularity of communities obtained (dashed lines) along the Y2 axis, with X, X, and X (Algorithm X) on batch updates of increasing size from $10^{-7} |E|$ to $0.1 |E|$. Note that both axes are logarithmic. The numbers on the lines corresponding to X and X indicate the speedup of X over  the two algorithms, respectively.}
+  \caption{Runtime (logarithmic scale) of \textit{Static}, \textit{Naive-dynamic}, \textit{Dynamic Traversal}, and \textit{Dynamic Frontier} PageRank with batch updates, consisting purely of edge deletions, increasing from $10^{-7} |E|$ to $0.1 |E|$, in multiples of $10$ (logarithmic scale). The figure on the right illustrates the runtime of each approach for individual graphs in the dataset, while the figure of the left presents overall runtimes (using geometric mean for consistent scaling across graphs).}
   \label{fig:deletions-runtime}
 \end{figure*}

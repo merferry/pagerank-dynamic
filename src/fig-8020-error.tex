@@ -9,6 +9,6 @@
     \label{fig:8020-error--all}
     \includegraphics[width=0.58\linewidth]{out/8020-error-all.pdf}
   } \\[-1ex]
-  \caption{8020 Time taken (solid lines), and modularity of communities obtained (dashed lines) along the Y2 axis, with X, X, and X (Algorithm X) on batch updates of increasing size from $10^{-7} |E|$ to $0.1 |E|$. Note that both axes are logarithmic. The numbers on the lines corresponding to X and X indicate the error of X over  the two algorithms, respectively.}
+  \caption{Error comparison of \textit{Static}, \textit{Naive-dynamic}, \textit{Dynamic Traversal}, and \textit{Dynamic Frontier} PageRank with respect to a Reference Static PageRank (with a tolerance $\tau$ of $10^{-100}$ and limited to $500$ iterations), using $L1$-norm. Batch updates range from $10^{-7} |E|$ to $0.1 |E|$ (logarithmic scale), consisting of $80\%$ edge insertions and $20\%$ edge deletions to simulate realistic dynamic graph updates. The right figure depicts the error for each approach in relation to each graph, while the left figure showcases overall errors using geometric mean for consistent scaling across graphs.}
   \label{fig:8020-error}
 \end{figure*}

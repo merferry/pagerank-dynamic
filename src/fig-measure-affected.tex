@@ -4,6 +4,7 @@
     \label{fig:measure-affected--batch}
     \includegraphics[width=0.98\linewidth]{out/measure-affected-batch.pdf}
   } \\[-2ex]
-\caption{Measure affected (To update). The error is averaged over the graphs in Table \ref{tab:dataset}.}
+\caption{Average percentage of vertices marked as affected by \textit{Dynamic Traversal} and \textit{Dynamic Frontier} PageRank, with batch size increasing from $10^{-7} |E|$ to $0.1 |E|$ in multiples of $10$ (logarithmic scale). The \textit{Dynamic Frontier} approach marks affected vertices incrementally --- thus, the final percentage (at the end of all iterations) is depicted here.}
   \label{fig:measure-affected}
 \end{figure}
+% Average percentage of affected vertices with \textit{Dynamic Traversal} and \textit{Dynamic Frontier} PageRank, with increasing batch size of $10^{-7} |E|$ to $0.1 |E|$, in multiples of $10$ (logarithmic scale). As the \textit{Dynamic Frontier} approach marks affected vertices incrementally, we plot the percentage of vertices marked as affected at the end of all iterations (i.e., we consider all vertices ever considered as affected).

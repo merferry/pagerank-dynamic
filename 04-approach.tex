@@ -1,53 +1,9 @@
-\subsection{Optimizations for Leiden algorithm}
-\label{sec:leiden}
-
-We extend our optimization techniques, originally designed for the Louvain method \cite{sahu2023gvelouvain}, to the Leiden algorithm. Specifically, we implement an \textit{asynchronous} version of the Leiden algorithm, allowing threads to operate independently on distinct sections of the graph. While this approach promotes faster convergence, it also introduces variability into the final result \cite{com-shi21}. To ensure efficient computations, we allocate a dedicated hashtable per thread. These hashtables serve two main purposes: they keep track of the delta-modularity associated with moving to each community connected to a vertex during the local-moving/refinement phases, and they record the total edge weight between super-vertices in the aggregation phase of the algorithm \cite{sahu2023gvelouvain}.
-
-Our optimizations encompass several strategies, including utilizing OpenMP's \textit{dynamic} loop scheduling, capping the number of iterations per pass at $20$, employing a tolerance drop rate of $10$ (threshold scaling), initiating with a tolerance of $0.01$, using an aggregation tolerance of $0.8$ to avoid performing aggregations of minimal utility, implementing flag-based vertex pruning (instead of a queue-based one \cite{nguyenleiden}), utilizing parallel prefix sum, and using preallocated Compressed Sparse Row (CSR) data structures for identifying community vertices and storing the super-vertex graph during aggregation. Additionally, we employ fast collision-free per-thread hashtables, well separated in their memory addresses \cite{sahu2023gvelouvain}.
-
-We attempt two approaches of the Leiden algorithm. One uses a \textit{greedy refinement phase} where vertices greedily optimize for delta-modularity (within their community bounds), while the other uses a \textit{randomized refinement phase} (using fast \textit{xorshift32} random number generators), where the likelihood of selection of a community to move to (by a vertex) is proportional to its delta-modularity, as originally proposed \cite{com-traag19}. Our results, shown in Figures \ref{fig:leidenopt-runtime} and \ref{fig:leidenopt-modularity}, indicate the \textit{greedy approach} performs the best on average, both in terms of runtime and modularity. We also try medium and heavy variants for both approaches, which disables threshold scaling and aggregation tolerance (including threshold scaling) respectively, However, we do not find them to perform well overall.\ignore{On \textit{europe\_osm} graph, our parallel Greedy-Leiden (which we from here on refer to simply as Leiden) runs $3\times$ faster than Nguyen \cite{nguyenleiden}.}
-
-\ignore{We fixed a bug that caused the Leiden algorithm to fail in finding communities on road networks and kmer graphs. The issue was forgetting to reset the affected vertices flags before running the refinement phase.}
-
-
-
-
-\subsubsection{Implementation details}
-
-We use a top-level parallel block, OpenMP's dynamic loop scheduling (with a chunk size of $2048$) along with \verb|nowait| directive, and a single shared rank vector to implement our \textit{Barrier-free} PageRank. Dynamic loop scheduling causes each running thread obtains a chunk of vertices to be processed from a global work pool, resulting in the running threads to have a balanced workload. This also enables our algorithm to be fault-tolerant to random thread delays and crashes (in the crash-stop model).
-
-
-
-
-\subsection{Our Naive-dynamic Barrier-free PageRank (\NaiBarf{})}
-\label{sec:naive}
-
-As discussed previously, the \textit{Naive-dynamic} approach is a simple method for updating vertex ranks in dynamic networks by initializing them with ranks from the previous snapshot. We apply this approach to our improved \textit{Barrier-free} PageRank (shown in Algorithm \ref{alg:barrier-free-naive-dynamic}), and refer to it as \NaiBarf{}. We also include the pseudocode for \textit{Naive-dynamic With-barrier} PageRank (\NaiWbar{}) for reference in Algorithm \ref{alg:with-barrier-naive-dynamic}.
-
-% \input{src/alg-barrier-free-naive-dynamic}
-% \input{src/alg-with-barrier-naive-dynamic}
-
-
-
-
-\subsection{Our Dynamic Traversal Barrier-free PageRank (\TraBarf{})}
-\label{sec:traversal}
-
-The \textit{Dynamic Traversal} approach (as discussed in Section \ref{sec:about-traversal}) marks all vertices reachable from every vertex involved in edge deletions or insertions as affected. In our barrier-free implementation of this approach (shown in Algorithm \ref{alg:barrier-free-dynamic-traversal}), which we refer to as \TraBarf{}, we allow any thread to start computing ranks as soon as it has finished marking affected vertices (based on edge updates assigned to it). Additionally, we provide the pseudocode for \textit{Dynamic Traversal With-barrier} PageRank (\TraWbar{}), which can be referred to in Algorithm \ref{alg:with-barrier-dynamic-traversal}.
-% A simple dynamic algorithm works as follows. Set $\pr^t(v)$ to $\pr^{t-1}(v)$ for all nodes $v$, and run Algorithm CalculateRanks on $G^t$. This algorithm, which we label as Algorithm Naive-PageRank-BarrierFree. In other words, this simple approach does not distinguish vertices that are likely have a change in their pagerank values to those that do not have a change in their pagerank. 
-
-However, our experiments show that the \textit{Dynamic Traversal} approach does not perform better than the \textit{Naive-dynamic} approach for any batch size. The overhead of this approach, due to several traversals required to identify the affected vertices, limits the performance of this approach.
-
-% \input{src/alg-barrier-free-dynamic-traversal}
-% \input{src/alg-with-barrier-dynamic-traversal}
-
-
-
-
 \subsection{Our Dynamic Frontier approach}
 \label{sec:frontier}
 
 The \textit{Naive-dynamic} approach processes all vertices in the graph until convergence. However, if a batch update $\Delta^{t-} \cup \Delta^{t+}$ is small compared to the total number of edges $|E|$, then it is expected that the ranks of only a few vertices change. Our proposed \textit{Dynamic Frontier} approach incorporates this aspect, and identifies affected vertices efficiently via an incremental process. We apply this approach to \textit{With-barrier} and \textit{Barrier-free} PageRank in Algorithms \ref{alg:with-barrier} and \ref{alg:barrier-free}, which we also denote as \FroWbar{} and \FroBarf{} respectively.
+
+% Incremental Iteration Method for Fast PageRank Computation (2015): In this paper, Kim and Choi \cite{kim2015incremental} propose an asynchronous approach for computing PageRank combined with the standard approach for finding the affected set of vertices (like Desikan et al. \cite{rank-desikan05}).
 
 
 \subsubsection{Explanation of the approach}
@@ -104,6 +60,9 @@ Our experiments show that a frontier tolerance of $\tau' = \tau/1000$, where $\t
 
 \input{src/fig-approach-async}
 \input{src/fig-adjust-frontier}
+
+
+% However, our experiments show that the \textit{Dynamic Traversal} approach does not perform better than the \textit{Naive-dynamic} approach for any batch size. The overhead of this approach, due to several traversals required to identify the affected vertices, limits the performance of this approach.
 
 
 

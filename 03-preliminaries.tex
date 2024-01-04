@@ -15,21 +15,6 @@ Presence of dead ends is an issue that arises when computing the PageRank of a g
 
 
 
-\subsection{Parallel Algorithms for Static Graphs}
-\label{sec:about-static}
-
-\subsubsection{With-barrier PageRank \cite{rank-garg16}}
-\label{sec:withbarrier}
-
-This is the standard implementation of parallel PageRank. Here the main thread forks into the desired number of threads at the start of each iteration, each thread computes ranks for a subset of vertices in the graph, and then each thread waits for the other threads to finish each iteration at the barrier (join). The main thread \textit{waits} for other threads to finish each iteration at the \textit{barrier}. This process repeats until the ranks converge, i.e., the change in ranks lies within a specified tolerance $\tau$. The computation of ranks of vertices is synchronous in each iteration, by maintaining the updated ranks in a separate vector, similar to the \textit{Jacobi} method. This helps avoid interference between threads and variability in the final result. In this paper, we refer to \textit{Static With-barrier} PageRank as \StaWbar{}.
-
-\paragraph{Work balancing in With-barrier PageRank:}
-
-Static scheduling distributes work among threads such that each thread works on a designated subset of vertices (in OpenMP) \cite{openmp-chapman07}. It has no scheduling overhead, but is susceptible to work imbalance. An edge-balanced technique evenly distributes work, by assigning vertices to threads such that the number of edges per thread is roughly the same \cite{rank-eedi22}. Alternatively, one can distribute work with \textit{dynamic schedule}, which allows each thread to select work from a global pool \cite{openmp-chapman07}. Such a distribution allows the work to be balanced (in the absence of thread sleep), but has scheduling overhead.
-
-
-
-
 \subsection{Dynamic Graphs}
 \label{sec:about-dynamic}
 
@@ -44,16 +29,18 @@ Changes to the graph arrive in a batched manner, with updating of the graph and 
 
 \subsection{Parallel Algorithms for Computing PageRank on Dynamic Graphs}
 
-\subsubsection{Naive-dynamic approach \cite{rank-zhang17}}
+\subsubsection{Naive-dynamic approach}
 \label{sec:about-naive}
 
 This is a straightforward approach of updating ranks of vertices in dynamic networks. Here, one initializes the ranks of vertices with ranks obtained from previous snapshot of the graph and runs the PageRank algorithm on all vertices. Rankings obtained through this method will be at least as accurate as those obtained through the static algorithm. In this paper, we refer to \textit{Naive-dynamic With-barrier} PageRank as \NaiWbar{}. Zhang et al. \cite{rank-zhang17} have explored the \textit{Naive-dynamic} approach in the hybrid CPU-GPU setting.
+% We also include the pseudocode for \textit{Naive-dynamic With-barrier} PageRank (\NaiWbar{}) for reference in Algorithm \ref{alg:with-barrier-naive-dynamic}.
 
 
-\subsubsection{Dynamic Traversal approach \cite{rank-desikan05, rank-giri20}}
+\subsubsection{Dynamic Traversal approach}
 \label{sec:about-traversal}
 
 With this approach, one skips processing of vertices that have no chance of their rank being updated as a result of the given batch update. For each edge deletion/insertion $(u, v)$ in the batch update, one marks all the vertices reachable from the vertex $u$ in the graph $G^{t-1}$ or the graph $G^t$ as affected (using Depth/Breadth First Search). Giri et al. \cite{rank-giri20} have explored the \textit{Dynamic Traversal} approach in the hybrid CPU-GPU setting. On the other hand, Banerjee et al. \cite{rank-sahu22} have explored this approach in the CPU and GPU settings separately where they compute the ranks of vertices in topological order of strongly connected components (SCCs) to minimize unnecessary computation. They borrow this ordered processing of SCCs from the original static algorithm proposed by Garg et al. \cite{rank-garg16}.
+% Additionally, we provide the pseudocode for \textit{Dynamic Traversal With-barrier} PageRank (\TraWbar{}), which can be referred to in Algorithm \ref{alg:with-barrier-dynamic-traversal}.
 
 
 

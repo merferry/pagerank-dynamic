@@ -1,7 +1,7 @@
 \subsection{Our Dynamic Frontier approach}
 \label{sec:frontier}
 
-The \textit{Naive-dynamic} approach processes all vertices in the graph until convergence. However, if a batch update $\Delta^{t-} \cup \Delta^{t+}$ is small compared to the total number of edges $|E|$, then it is expected that the ranks of only a few vertices change. Our proposed \textit{Dynamic Frontier} approach incorporates this aspect, and identifies affected vertices efficiently via an incremental process. We apply this approach to \textit{With-barrier} and \textit{Barrier-free} PageRank in Algorithms \ref{alg:with-barrier} and \ref{alg:barrier-free}, which we also denote as \FroWbar{} and \FroBarf{} respectively.
+The \textit{Naive-dynamic} approach processes all vertices in the graph until convergence. However, if a batch update $\Delta^{t-} \cup \Delta^{t+}$ is small compared to the total number of edges $|E|$, then it is expected that the ranks of only a few vertices change. Our proposed \textit{Dynamic Frontier} approach incorporates this aspect, and identifies affected vertices efficiently via an incremental process.
 
 % Incremental Iteration Method for Fast PageRank Computation (2015): In this paper, Kim and Choi \cite{kim2015incremental} propose an asynchronous approach for computing PageRank combined with the standard approach for finding the affected set of vertices (like Desikan et al. \cite{rank-desikan05}).
 
@@ -21,8 +21,7 @@ For each edge deletion/insertion $(u, v)$, we initially mark the outgoing neighb
 
 Next, while performing PageRank computation (lines \ref{alg:with-barrier--compute-begin}-\ref{alg:with-barrier--compute-end} in Algorithm \ref{alg:with-barrier}, and lines \ref{alg:barrier-free--compute-begin}-\ref{alg:barrier-free--compute-end} in Algorithm \ref{alg:barrier-free}), if the rank of any affected vertex $v$ changes in an iteration by an amount greater than the \textit{frontier tolerance} $\tau'$, we mark its outgoing neighbors as affected (lines \ref{alg:with-barrier--remark-begin}-\ref{alg:with-barrier--remark-end} in Algorithm \ref{alg:with-barrier}, and lines \ref{alg:barrier-free--remark-begin}-\ref{alg:barrier-free--remark-end} in Algorithm \ref{alg:barrier-free}). This process of marking vertices continues in every iteration.
 
-% \input{src/alg-with-barrier}
-% \input{src/alg-barrier-free}
+\input{src/alg-prdf}
 
 
 \subsubsection{A simple example}
@@ -35,7 +34,7 @@ During the second iteration (see Figure \ref{fig:about-frontier-04}), the ranks 
 
 In the subsequent iteration, the ranks of affected vertices are again updated. If the change in rank of every vertex is within (iteration) tolerance $\tau$, the ranks of vertices have converged, and the algorithm terminates.
 
-
+% Illustration of the \textit{Dynamic Frontier} approach through a specific example. The initial graph consists of $16$ vertices and $25$ edges. The graph is then updated with an edge insertion $(4, 12)$, and an edge deletion $(2, 1)$. Accordingly, the outgoing neighbors of vertices $4$ ($3$ and $12$) and $2$ ($1$, $4$, and $8$) are marked as affected (shown with yellow fill). When the ranks of these affected vertices are computed in the first iteration, it is found that change in rank of vertices $1$ and $12$ exceeds the frontier tolerance $\tau_f$ (shown with red border). Thus, outgoing neighbors of vertices $1$ ($3$ and $5$) and $12$ ($11$ and $14$) are also marked as affected. In the second iteration, the change in rank of vertices $3$, $5$, $11$, and $14$ is greater than $\tau_f$ --- thus their outgoing vertices are marked as affected. In the subsequent iteration, the ranks of affected vertices are again updated. If the change in rank of every vertex is within (iteration) tolerance $\tau$, the ranks of vertices have converged, and the algorithm terminates.
 
 
 \subsection{Dynamic Frontier With-barrier PageRank (\FroWbar{})}
@@ -53,16 +52,20 @@ Note that $\Delta r$ represents the change in rank of single vertex, and $\Delta
 
 
 
+\subsection{Synchronous vs Asynchronous implementation}
 
-\subsection{Determination of Frontier tolerance ($\tau'$)}
+We first want to check whether a synchronous, or an asynchronous implementation is suitable for \textit{Dynamic Frontier} PageRank. 
+A synchronous implementation is one which uses two separate rank vectors, one as the input, and the other as the output --- at the end of each iteration, the vectors are swapped such that the output rank vector now becomes the input for the next iteration, and vice versa. This separation between the input and the output allows the results to be deterministic (for a parallel algorithm). On the other hand, an asynchronous implementation uses a single ranks vectors, and all updates are made in-place. This offers the possibility of faster convergence and absence of memory copies for unaffected/unprocessed vertices with dynamic approaches, but causes the results to be non-deterministic (for a parallel algorithm). To check whether a synchronous or an asynchronous implementation is suitable for \textit{Dynamic Frontier} PageRank, we attempt both the implementation for \textit{Static}, \textit{Naive-dynamic}, \textit{Dynamic Traversal}, and \textit{Dynamic Frontier} PageRank on batch updates (consisting purely of edge insertions; is this needed?) of size $10^{-7}|E|$ to $0.1|E|$. Figure \ref{fig:measure-affected} shows the average relative runtime with asynchronous implementations of \textit{Static}, \textit{Naive-dynamic}, \textit{Dynamic Traversal}, and \textit{Dynamic Frontier} PageRank compared to their respective synchronous implementations, on batch updates of size $10^{-7}|E|$ to $0.1|E|$ (right), and overall (left). The results indicate that asynchronous implementations are faster than synchronous ones, especially for smaller batch sizes. This is due to a somewhat faster convergence and the absence of copy overhead (for \textit{Dynamic Traversal} and \textit{Dynamic Frontier} approaches). Accordingly, we use the asynchronous implementations of \textit{Naive-dynamic}, \textit{Dynamic Traversal}, and \textit{Dynamic Frontier} PageRank.
 
-Our experiments show that a frontier tolerance of $\tau' = \tau/1000$, where $\tau$ is the (iteration) tolerance, provides a good speedup with a maximum error of $10^{-9}$ at a batch size of $10^{-4} |E|$ compared to a mean error of $5 \times 10^{-10}$ for \NaiWbar{} and \NaiBarf{} with respect to ranks obtained from reference PageRank (see Section \ref{sec:measurement}). Thus, if an edge in the batch update affects the rank of vertex $u$ (by a small amount), directly or indirectly, all its outgoing neighbors $v' \in G^t.out(u)$ will also be marked as affected, as they are likely to have a change in rank as well.
+
+
+
+\subsection{Determination of Frontier tolerance ($\tau_f$)}
+
+We now wish to measure a suitable value for Frontier tolerance that allows us to minimize the number of vertices we process (after marking them as affected), while ensuring that we obtain ranks with the desired tolerance, i.e. we obtain ranks with no higher error than \textit{Static} PageRank for the same tolerance setting. For this, we adjust Frontier tolerance $\tau_f$ from $\tau$ to $\tau / 10^5$ and obtain ranks of vertices with the \textit{Dynamic Frontier} approach on batch updates (consisting purely of edge insertions) of size $10^{-7}|E|$ to $0.1|E|$. Figure \ref{fig:adjust-frontier} shows the average relative runtime and error in ranks obtained (with respect to ranks obtained with Reference Static PageRank) using \textit{Dynamic Frontier} approach. The figure indicates that increasing $\tau_f$ reduces runtime, but also increases the error. A Frontier tolerance $\tau_f$ of $\tau/10^4$ and $\tau/10^5$ obtain ranks with error lower than \textit{Static} PageRank, and are thus acceptable (we choose $\tau_f = \tau/10^5$ to be on the safe side).
 
 \input{src/fig-approach-async}
 \input{src/fig-adjust-frontier}
-
-
-% However, our experiments show that the \textit{Dynamic Traversal} approach does not perform better than the \textit{Naive-dynamic} approach for any batch size. The overhead of this approach, due to several traversals required to identify the affected vertices, limits the performance of this approach.
 
 
 

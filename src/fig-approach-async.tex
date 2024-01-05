@@ -1,13 +1,13 @@
-\begin{figure}[!hbt]
+\begin{figure*}[!hbt]
   \centering
   \subfigure{
     \label{fig:approach-async--mean}
-    \includegraphics[width=0.98\linewidth]{out/approach-async-mean.pdf}
-  } \\[-1ex]
+    \includegraphics[width=0.48\linewidth]{out/approach-async-mean.pdf}
+  }
   \subfigure{
     \label{fig:approach-async--batch}
-    \includegraphics[width=0.98\linewidth]{out/approach-async-batch.pdf}
+    \includegraphics[width=0.48\linewidth]{out/approach-async-batch.pdf}
   } \\[-2ex]
-\caption{Approach Async. The error is averaged over the graphs in Table \ref{tab:dataset}.}
+  \caption{Average Relative runtime with asynchronous implementations of \textit{Static}, \textit{Naive-dynamic}, \textit{Dynamic Traversal}, and \textit{Dynamic Frontier} approach compared to their respective synchronous implementations, on batch updates of size $10^{-7}|E|$ to $0.1|E|$ (right), and overall (left). The results indicate that asynchronous implementations are faster than synchronous ones, especially for smaller batch sizes. This is due to a somewhat faster convergence and the absence of copy overhead (for \textit{Dynamic Traversal} and \textit{Dynamic Frontier} approaches).}
   \label{fig:approach-async}
-\end{figure}
+\end{figure*}

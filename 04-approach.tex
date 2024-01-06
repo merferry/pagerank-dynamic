@@ -1,9 +1,7 @@
 \subsection{Our Dynamic Frontier approach}
 \label{sec:frontier}
 
-The \textit{Naive-dynamic} approach processes all vertices in the graph until convergence. However, if a batch update $\Delta^{t-} \cup \Delta^{t+}$ is small compared to the total number of edges $|E|$, then it is expected that the ranks of only a few vertices change. Our proposed \textit{Dynamic Frontier} approach incorporates this aspect, and identifies affected vertices efficiently via an incremental process.
-
-% Incremental Iteration Method for Fast PageRank Computation (2015): In this paper, Kim and Choi \cite{kim2015incremental} propose an asynchronous approach for computing PageRank combined with the standard approach for finding the affected set of vertices (like Desikan et al. \cite{rank-desikan05}).
+If a batch update $\Delta^{t-} \cup \Delta^{t+}$ is small compared to the total number of edges $|E|$, then it is expected that the ranks of only a few vertices change. Our proposed \textit{Dynamic Frontier} approach incorporates this aspect, and identifies affected vertices via an incremental process.
 
 
 \subsubsection{Explanation of the approach}
@@ -11,44 +9,27 @@ The \textit{Naive-dynamic} approach processes all vertices in the graph until co
 
 Consider a batch update consisting of edge deletions $(u, v) \in \Delta^{t-}$ and insertions $(u, v) \in \Delta^{t+}$. We first initialize the rank of each vertex to that obtained in the previous snapshot of the graph.
 
-\input{src/fig-about-df}
+\input{src/fig-about-frontier}
 
 \paragraph{Initial marking of affected vertex on edge deletion/insertion:}
 
-For each edge deletion/insertion $(u, v)$, we initially mark the outgoing neighbors of the vertex $u$ in the previous $G^{t-1}$ and current graph snapshot $G^t$ as affected (lines \ref{alg:with-barrier--mark-begin}-\ref{alg:with-barrier--mark-end} in Algorithm \ref{alg:with-barrier}, and lines \ref{alg:barrier-free--mark-begin}-\ref{alg:barrier-free--mark-end} in Algorithm \ref{alg:barrier-free}).
+For each edge deletion/insertion $(u, v)$, we initially mark the outgoing neighbors of the vertex $u$ in the previous $G^{t-1}$ and current graph snapshot $G^t$ as affected.
 
 \paragraph{Incremental marking of affected vertices upon change in rank of a given vertex:}
 
-Next, while performing PageRank computation (lines \ref{alg:with-barrier--compute-begin}-\ref{alg:with-barrier--compute-end} in Algorithm \ref{alg:with-barrier}, and lines \ref{alg:barrier-free--compute-begin}-\ref{alg:barrier-free--compute-end} in Algorithm \ref{alg:barrier-free}), if the rank of any affected vertex $v$ changes in an iteration by an amount greater than the \textit{frontier tolerance} $\tau'$, we mark its outgoing neighbors as affected (lines \ref{alg:with-barrier--remark-begin}-\ref{alg:with-barrier--remark-end} in Algorithm \ref{alg:with-barrier}, and lines \ref{alg:barrier-free--remark-begin}-\ref{alg:barrier-free--remark-end} in Algorithm \ref{alg:barrier-free}). This process of marking vertices continues in every iteration.
-
-\input{src/alg-prdf}
+Next, while performing PageRank computation, if the rank of any affected vertex $v$ changes in an iteration by an amount greater than the \textit{frontier tolerance} $\tau_f$, we mark its outgoing neighbors as affected. This process of marking vertices continues in every iteration.
 
 
 \subsubsection{A simple example}
 
-Figure \ref{fig:about-frontier} shows an example of the \textit{Dynamic Frontier} approach. The original graph, shown in Figure \ref{fig:about-frontier-01} consists of $16$ vertices. Subsequently, Figure \ref{fig:about-frontier-02} shows a batch update applied to the original graph involving the deletion of an edge from vertex $2$ to $1$ and the insertion of an edge from vertex $4$ to $12$. Following the batch update, we perform the initial step of the \textit{Dynamic Frontier} approach, marking outgoing neighbors of $2$ and $4$ as affected, i.e., $1$, $3$, $4$, $8$, and $12$ are marked as affected. Note that vertex $2$ is not affected as it is a source of the change while vertex $4$ being a neighbour of $2$ is also affected. Now, we are ready to execute the first iteration of PageRank algorithm.
+Figure \ref{fig:about-frontier} shows an example of the \textit{Dynamic Frontier} approach. The initial graph, shown in Figure \ref{fig:about-frontier-01}, comprises $16$ vertices and $25$ edges. Subsequently, Figure \ref{fig:about-frontier-02} shows a batch update applied to the original graph involving the deletion of an edge from vertex $2$ to $1$ and the insertion of an edge from vertex $4$ to $12$. Following the batch update, we perform the initial step of the \textit{Dynamic Frontier} approach, marking outgoing neighbors of $2$ and $4$ as affected, i.e., $1$, $3$, $4$, $8$, and $12$ are marked as affected (indicated with a yellow fill). Note that vertex $2$ is not affected as it is a source of the change while vertex $4$ being a neighbour of $2$ is marked as affected. Now, we are ready to execute the first iteration of PageRank algorithm.
 
-During the first iteration (see Figure \ref{fig:about-frontier-03}), the ranks of affected vertices are updated. Consider that the change in rank of vertices $1$ and $12$ is observed to be greater than frontier tolerance $\tau'$, shown with red border in Figure \ref{fig:about-frontier-03}. In response to this, the \textit{Dynamic Frontier} approach incrementally marks the outgoing neighbors of $1$ and $12$ as affected, specifically vertices $5$, $11$, and $14$.
+During the first iteration (see Figure \ref{fig:about-frontier-03}), the ranks of affected vertices are updated. It is observed that the rank changes of vertices $1$ and $12$ surpass the frontier tolerance $\tau_f$ (highlighted with a red border). In response to this, we incrementally mark the outgoing neighbors of $1$ and $12$ as affected, i.e., vertices $5$, $11$, and $14$. 
 
-During the second iteration (see Figure \ref{fig:about-frontier-04}), the ranks of affected vertices are again updated. Further, consider that the change in rank of vertices $3$, $5$, $11$, and $14$ is observed to be greater than frontier tolerance $\tau'$, shown with red border in Figure \ref{fig:about-frontier-03}. As before, we mark the outgoing neighbors of $3$, $5$, $11$, and $14$ as affected, namely vertices $4$, $6$, and $15$.
+During the second iteration (see Figure \ref{fig:about-frontier-04}), the ranks of affected vertices are again updated. Here, its is observed that the change in rank of vertices $3$, $5$, $11$, and $14$ is greater than frontier tolerance $\tau_f$. Thus, we mark the outgoing neighbors of $3$, $5$, $11$, and $14$ as affected, namely vertices $4$, $6$, and $15$.
 
-In the subsequent iteration, the ranks of affected vertices are again updated. If the change in rank of every vertex is within (iteration) tolerance $\tau$, the ranks of vertices have converged, and the algorithm terminates.
+In the subsequent iteration, the ranks of affected vertices are again updated. If the change in rank of each vertex is within iteration tolerance $\tau$, the ranks of vertices have converged, and the algorithm terminates.
 
-% Illustration of the \textit{Dynamic Frontier} approach through a specific example. The initial graph consists of $16$ vertices and $25$ edges. The graph is then updated with an edge insertion $(4, 12)$, and an edge deletion $(2, 1)$. Accordingly, the outgoing neighbors of vertices $4$ ($3$ and $12$) and $2$ ($1$, $4$, and $8$) are marked as affected (shown with yellow fill). When the ranks of these affected vertices are computed in the first iteration, it is found that change in rank of vertices $1$ and $12$ exceeds the frontier tolerance $\tau_f$ (shown with red border). Thus, outgoing neighbors of vertices $1$ ($3$ and $5$) and $12$ ($11$ and $14$) are also marked as affected. In the second iteration, the change in rank of vertices $3$, $5$, $11$, and $14$ is greater than $\tau_f$ --- thus their outgoing vertices are marked as affected. In the subsequent iteration, the ranks of affected vertices are again updated. If the change in rank of every vertex is within (iteration) tolerance $\tau$, the ranks of vertices have converged, and the algorithm terminates.
-
-
-\subsection{Dynamic Frontier With-barrier PageRank (\FroWbar{})}
-\label{sec:frontier-withbarrier}
-
-As mentioned in Section \ref{sec:withbarrier}, we perform a synchronous rank computation with \FroWbar{} using two rank vectors $R$, and $R_{new}$ (see Algorithm \ref{alg:with-barrier}).
-
-\paragraph{Tracking affected vertices:}
-
-To track vertices that are marked as affected due to the current batch update $\Delta^{t-} \cup \Delta^{t+}$, we use a flag vector $V_A$ (an 8-bit integer vector).
-
-\paragraph{Detecting convergence:}
-
-Note that $\Delta r$ represents the change in rank of single vertex, and $\Delta R$ represents the $L_\infty$-norm between the previous $R$ and the current rank vector $R_{new}$. When $\Delta R$ lies within (iteration) tolerance $\tau$, ranks are considered to have converged.
 
 
 
@@ -69,6 +50,16 @@ Figure \ref{fig:adjust-frontier} illustrates the average relative runtime and ra
 
 \input{src/fig-approach-async}
 \input{src/fig-adjust-frontier}
+\input{src/alg-frontier}
+
+
+
+
+\subsection{Our Dynamic Frontier PageRank implementation}
+
+Algorithm \ref{alg:frontier} shows our implementation of \textit{Dynamic Frontier} PageRank, which is designed to compute the PageRank of vertices in a graph while efficiently handling dynamic changes in the graph structure over time. The algorithm takes as input the previous and current versions of the graph, edge deletions and insertions in the batch update, and the previous rank vector.
+
+It begins by marking the initially affected vertices based on the edge deletions $\Delta^{t+}$ and insertions $\Delta^{t-}$ in parallel (lines \ref{alg:frontier--mark-begin}-\ref{alg:frontier--mark-end}). It then enters an iterative computation phase (lines \ref{alg:frontier--compute-begin}-\ref{alg:frontier--compute-end}), where it updates the rank of each affected vertex. The PageRank computation is performed in parallel for each affected vertex $v$, considering the incoming edges $G^t.in(v)$. The algorithm checks whether the change in rank $\Delta r$ exceeds the frontier tolerance $\tau_f$, and marks its out-neighbor vertices as affected if so. The iteration continues until either the net change in ranks $\Delta R$ (which is equal to the $L\infty$-norm between the previous and the current ranks) falls below the iteration tolerance $\tau$, or a maximum number of iterations is reached $MAX\_ITERATIONS$. In line \ref{alg:frontier--return}, the final rank vector $R$ is returned.
 
 
 

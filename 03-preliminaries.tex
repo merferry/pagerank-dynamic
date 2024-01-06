@@ -27,24 +27,17 @@ Changes to the graph arrive in a batched manner, with updating of the graph and 
 
 
 
-\subsection{Parallel Algorithms for Computing PageRank on Dynamic Graphs}
+\subsection{Existing approaches for updating PageRank on Dynamic Graphs}
 
 \subsubsection{Naive-dynamic approach}
 \label{sec:about-naive}
 
-This is a straightforward approach of updating ranks of vertices in dynamic networks. Here, one initializes the ranks of vertices with ranks obtained from previous snapshot of the graph and runs the PageRank algorithm on all vertices. Rankings obtained through this method will be at least as accurate as those obtained through the static algorithm. In this paper, we refer to \textit{Naive-dynamic With-barrier} PageRank as \NaiWbar{}. Zhang et al. \cite{rank-zhang17} have explored the \textit{Naive-dynamic} approach in the hybrid CPU-GPU setting.
+This is a straightforward approach of updating ranks of vertices in dynamic networks. Here, one initializes the ranks of vertices with ranks obtained from previous snapshot of the graph and runs the PageRank algorithm on all vertices. Rankings obtained through this method will be at least as accurate as those obtained through the static algorithm.\ignore{Zhang et al. \cite{rank-zhang17} have explored the \textit{Naive-dynamic} approach in the hybrid CPU-GPU setting.}
 % We also include the pseudocode for \textit{Naive-dynamic With-barrier} PageRank (\NaiWbar{}) for reference in Algorithm \ref{alg:with-barrier-naive-dynamic}.
 
 
 \subsubsection{Dynamic Traversal approach}
 \label{sec:about-traversal}
 
-With this approach, one skips processing of vertices that have no chance of their rank being updated as a result of the given batch update. For each edge deletion/insertion $(u, v)$ in the batch update, one marks all the vertices reachable from the vertex $u$ in the graph $G^{t-1}$ or the graph $G^t$ as affected (using Depth/Breadth First Search). Giri et al. \cite{rank-giri20} have explored the \textit{Dynamic Traversal} approach in the hybrid CPU-GPU setting. On the other hand, Banerjee et al. \cite{rank-sahu22} have explored this approach in the CPU and GPU settings separately where they compute the ranks of vertices in topological order of strongly connected components (SCCs) to minimize unnecessary computation. They borrow this ordered processing of SCCs from the original static algorithm proposed by Garg et al. \cite{rank-garg16}.
+Originally proposed by Desikan et al. \cite{rank-desikan05}, here one skips processing of vertices that have no chance of their rank being updated as a result of the given batch update. For each edge deletion/insertion $(u, v)$ in the batch update, one marks all the vertices reachable from the vertex $u$ in the graph $G^{t-1}$ or the graph $G^t$ as affected (using DFS or BFS).\ignore{Giri et al. \cite{rank-giri20} have explored the \textit{Dynamic Traversal} approach in the hybrid CPU-GPU setting. On the other hand, Banerjee et al. \cite{rank-sahu22} have explored this approach in the CPU and GPU settings separately where they compute the ranks of vertices in topological order of strongly connected components (SCCs) to minimize unnecessary computation. They borrow this ordered processing of SCCs from the original static algorithm proposed by Garg et al. \cite{rank-garg16}.}
 % Additionally, we provide the pseudocode for \textit{Dynamic Traversal With-barrier} PageRank (\TraWbar{}), which can be referred to in Algorithm \ref{alg:with-barrier-dynamic-traversal}.
-
-
-
-
-% Asynchronous PageRank computation? No.
-% Dynamic Traversal (BFS/DFS) approach
-% Parallel Dynamic Traversal (DT) approach

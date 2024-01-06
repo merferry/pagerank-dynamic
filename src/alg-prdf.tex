@@ -1,5 +1,5 @@
 \begin{algorithm}[!hbt]
-\caption{Our parallel Dynamic Frontier PageRank\ignore{ (DF-PageRank)}.}
+\caption{Our parallel Dynamic Frontier PageRank.}
 \label{alg:prdf}
 \begin{algorithmic}[1]
 \Require{$\Delta^{t-}, \Delta^{t+}$: Edge deletions and insertions (input)}
@@ -8,7 +8,7 @@
 
 \Statex
 
-\Function{$\text{DF}_{\text{WBPR}}$}{$G^{t-1}, R^{t-1}, \Delta^{t-}, \Delta^{t+}$}
+\Function{dynamicFrontierPR}{$G^{t-1}, R^{t-1}, \Delta^{t-}, \Delta^{t+}$}
   \State $V_A \gets \{0\}$ \textbf{;} $R_{new} \gets R \gets R^{t-1}$
   \State $\rhd$ Mark initial affected
   \ForAll{$(u, v) \in \Delta^{t-} \cup \Delta^{t+} \textbf{in parallel}$} \label{alg:with-barrier--mark-begin}
@@ -16,7 +16,7 @@
     \State $V_A[v'] \gets 1$
     \EndFor
   \EndFor \label{alg:with-barrier--mark-end}
-  \State \textbf{wait for all threads} (implicit barrier)
+  % \State \textbf{wait for all threads} (implicit barrier)
   \ForAll{$i \in [0 .. MAX\_ITERATIONS)$} \label{alg:with-barrier--compute-begin}
     \ForAll{$v \in V^t$ \textbf{in parallel}}
       \State $\rhd$ Is vertex not affected?
@@ -33,7 +33,7 @@
         \EndFor
       \EndIf \label{alg:with-barrier--remark-end}
     \EndFor
-    \State \textbf{wait for all threads} (implicit barrier)
+    % \State \textbf{wait for all threads} (implicit barrier)
     \State $\Delta R \gets l_\infty Norm(R, R_{new})$ \textbf{in parallel}
     \State $swap(R_{new}, R)$
     \State $\rhd$ Ranks converged?

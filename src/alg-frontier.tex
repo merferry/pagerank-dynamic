@@ -8,9 +8,8 @@
 \Ensure{$R$: Current rank vector}
 \Ensure{$\Delta r$: Change in rank of a vertex}
 \Ensure{$\Delta R$: $L\infty$-norm between previous and current ranks}
+\Ensure{$\tau, \tau_f$: Iteration, frontier tolerance}
 \Ensure{$\alpha$: Damping factor}
-\Ensure{$\tau$: Iteration tolerance}
-\Ensure{$\tau_f$: Frontier tolerance}
 
 \Statex
 
@@ -29,7 +28,8 @@
       \ForAll{$u \in G^t.in(v)$}
         \State $r \gets r + \alpha * R[u] / |G^t.out(u)|$
       \EndFor
-      \State $\Delta r \gets |r - R[v]|$ \textbf{;} $\Delta R \gets max(\Delta R, \Delta r)$
+      \State $\Delta r \gets |r - R[v]|$ \textbf{;} $R[v] \gets r$
+      \State $\Delta R \gets max(\Delta R, \Delta r)$
       \State $\rhd$ Is rank change $>$ frontier tolerance?
       \If{$\Delta r > \tau_f$} \label{alg:frontier--remark-begin}
         \ForAll{$v' \in G^t.out(v)$}
